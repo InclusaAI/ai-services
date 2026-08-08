@@ -1,0 +1,65 @@
+ai-services/
+│
+├── services/
+│   │
+│   ├── asr/
+│   │   ├── app/
+│   │   │   ├── api/
+│   │   │   ├── inference/
+│   │   │   ├── models/
+│   │   │   ├── preprocessing/
+│   │   │   ├── postprocessing/
+│   │   │   └── main.py
+│   │   ├── tests/
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   │
+│   ├── sign-recognition/
+│   │   ├── app/
+│   │   │   ├── api/
+│   │   │   ├── inference/
+│   │   │   ├── models/
+│   │   │   ├── preprocessing/
+│   │   │   └── main.py
+│   │   ├── tests/
+│   │   └── pyproject.toml
+│   │
+│   ├── avatar-gen/
+│   │   ├── app/
+│   │   ├── models/
+│   │   ├── pipelines/
+│   │   ├── tests/
+│   │   └── pyproject.toml
+│   │
+│   ├── translation-tts/
+│   │   ├── app/
+│   │   │   ├── translation/
+│   │   │   ├── tts/
+│   │   │   ├── language/
+│   │   │   └── main.py
+│   │   ├── tests/
+│   │   └── pyproject.toml
+│   │
+│   └── vision-quality/
+│       ├── app/
+│       │   ├── detection/
+│       │   ├── quality/
+│       │   ├── preprocessing/
+│       │   └── main.py
+│       ├── tests/
+│       └── pyproject.toml
+│
+├── shared/
+│   ├── ai-core/
+│   ├── telemetry/
+│   ├── messaging/
+│   └── utils/
+│
+├── models/
+│   └── README.md
+│
+├── docker/
+├── scripts/
+├── tests/
+├── pyproject.toml
+└── README.md
