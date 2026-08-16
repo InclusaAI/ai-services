@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import TranscriptSegment
-
 from app.config import Settings
 from app.inference.engine import TranslationEngine
 from app.pipeline import TranslationPipeline
 from app.postprocessing import to_result
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import TranscriptSegment
 
 
 def test_engine_stub_translates(settings: Settings) -> None:

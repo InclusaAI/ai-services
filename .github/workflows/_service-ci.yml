@@ -22,7 +22,7 @@ jobs:
       # ruff + mypy live in the ROOT dev group; run them from the root env, which
       # also has the shared libs installed so inclusaai_* imports resolve.
       - name: Sync root workspace
-        run: uv sync
+        run: uv sync --all-packages
       - name: Ruff
         run: uv run ruff check "services/${{ inputs.service }}"
       - name: Mypy

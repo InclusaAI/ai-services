@@ -35,5 +35,6 @@ class TranslationEngine:
         with measure_latency(self.settings.service_name, self.settings.model_name or "stub"):
             if self._stub or self._model is None:
                 return f"[{target}] {text}"
-            # TODO(model-integration): self._model.predict({"text": text, "src": source, "tgt": target})
+            # TODO(model-integration):
+            #   self._model.predict({"text": text, "src": source, "tgt": target})
             raise NotImplementedError("Wire TranslationEngine.translate to the registered model.")

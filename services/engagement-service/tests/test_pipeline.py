@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import EngagementSignalAggregate, ParticipantEvent
-
 from app.aggregation import SessionEngagementAggregator
 from app.config import Settings
 from app.pipeline import EngagementPipeline
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import EngagementSignalAggregate, ParticipantEvent
 
 
 def _participant(participant_id: str, event: str, ts: int) -> ParticipantEvent:

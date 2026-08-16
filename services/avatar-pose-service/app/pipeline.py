@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from inclusaai_ai_core import BaseInferencePipeline
 from inclusaai_contracts.events import AccessibilityChannel, TranscriptSegment
+from pydantic import BaseModel
 
 from app.config import Settings
 from app.inference.engine import PoseEngine

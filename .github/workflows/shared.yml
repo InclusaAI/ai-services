@@ -24,7 +24,7 @@ jobs:
         with:
           enable-cache: true
       - name: Sync root workspace
-        run: uv sync
+        run: uv sync --all-packages
       - name: Generate contracts (gRPC stubs + JSON schemas)
         run: uv run python scripts/gen_contracts.py
       - name: Ruff

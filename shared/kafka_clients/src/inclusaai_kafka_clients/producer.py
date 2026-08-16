@@ -6,10 +6,10 @@ import json
 from typing import Any
 
 from aiokafka import AIOKafkaProducer
+from inclusaai_telemetry import EVENTS_PUBLISHED, get_logger
 from pydantic import BaseModel
 
 from inclusaai_kafka_clients.topics import topic_for_event_key
-from inclusaai_telemetry import EVENTS_PUBLISHED, get_logger
 
 log = get_logger(__name__)
 

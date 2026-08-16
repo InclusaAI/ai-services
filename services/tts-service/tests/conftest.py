@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import pytest
-
-from inclusaai_contracts.events import TranslationResult
-
 from app.config import Settings
+from inclusaai_contracts.events import TranslationResult
 
 
 @pytest.fixture

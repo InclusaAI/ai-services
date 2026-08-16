@@ -14,7 +14,7 @@ def setup_logging(level: str = "INFO", service_name: str | None = None) -> None:
     Idempotent enough for repeated calls in tests."""
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper())
 
-    processors = [
+    processors: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),

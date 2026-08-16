@@ -11,9 +11,10 @@ import asyncio
 from collections import defaultdict
 
 from inclusaai_contracts.events import UsageAggregate
-from inclusaai_kafka_clients.producer import KafkaEventProducer
 from inclusaai_telemetry import get_logger
 from inclusaai_utils import now_ms
+
+from inclusaai_kafka_clients.producer import KafkaEventProducer
 
 log = get_logger(__name__)
 
@@ -42,7 +43,7 @@ class UsageAggregator:
         while not self._stop.is_set():
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._interval)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             await self.flush()
 

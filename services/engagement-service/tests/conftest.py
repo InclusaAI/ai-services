@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import pytest
-
-from inclusaai_contracts.events import ParticipantEvent
-
 from app.config import Settings
+from inclusaai_contracts.events import ParticipantEvent
 
 
 @pytest.fixture

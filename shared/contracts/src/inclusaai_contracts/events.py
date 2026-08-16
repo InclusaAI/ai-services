@@ -11,7 +11,7 @@ inclusaai_kafka_clients.topics, not here.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 # --------------------------------------------------------------------------- #
 # Shared enums
 # --------------------------------------------------------------------------- #
-class AccessibilityChannel(str, Enum):
+class AccessibilityChannel(StrEnum):
     """Output channels a participant may need. Drives preference-aware gating:
     ai-services skips generating an output no active participant has enabled
     (see ai-services-IMPLEMENTATION.md §5/§9)."""

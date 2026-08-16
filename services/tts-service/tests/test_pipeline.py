@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import TranslationResult
-
 from app.config import Settings
 from app.inference.engine import TtsEngine
 from app.pipeline import TtsPipeline
 from app.postprocessing import to_chunk
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import TranslationResult
 
 
 def test_engine_stub_synthesizes(settings: Settings) -> None:

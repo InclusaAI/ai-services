@@ -17,14 +17,14 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from inclusaai_contracts.events import AccessibilityChannel, AccessibilityPreferenceUpdated
+from inclusaai_kafka_clients import KafkaEventConsumer, KafkaEventProducer, UsageAggregator
+from inclusaai_telemetry import INFERENCE_ERRORS, get_logger
 from pydantic import BaseModel
 
 from inclusaai_ai_core.config import BaseServiceSettings
 from inclusaai_ai_core.preferences import PreferenceCache
 from inclusaai_ai_core.scaling import set_active_sessions
-from inclusaai_contracts.events import AccessibilityChannel, AccessibilityPreferenceUpdated
-from inclusaai_kafka_clients import KafkaEventConsumer, KafkaEventProducer, UsageAggregator
-from inclusaai_telemetry import INFERENCE_ERRORS, get_logger
 
 log = get_logger(__name__)
 

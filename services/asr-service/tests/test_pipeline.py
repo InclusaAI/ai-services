@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import base64
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import AudioChunk
-
 from app.config import Settings
 from app.inference.engine import AsrEngine
 from app.pipeline import AsrPipeline
 from app.postprocessing.segments import to_segment
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import AudioChunk
 
 
 def test_engine_stub_transcribes(settings: Settings) -> None:

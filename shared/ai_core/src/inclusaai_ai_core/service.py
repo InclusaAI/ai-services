@@ -13,11 +13,11 @@ from contextlib import asynccontextmanager
 from typing import Protocol, runtime_checkable
 
 from fastapi import APIRouter, FastAPI
+from inclusaai_telemetry import get_logger, render_latest, setup_logging, setup_tracing
 from starlette.responses import Response
 
 from inclusaai_ai_core.config import BaseServiceSettings
 from inclusaai_ai_core.health import Readiness, health_router
-from inclusaai_telemetry import get_logger, render_latest, setup_logging, setup_tracing
 
 log = get_logger(__name__)
 

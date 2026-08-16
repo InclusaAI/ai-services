@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import VideoFrame
-
 from app.config import Settings
 from app.inference.engine import VisionQualityEngine
 from app.pipeline import VisionQualityPipeline
 from app.postprocessing import to_signal
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import VideoFrame
 
 
 def test_engine_assesses(settings: Settings, video_frame: VideoFrame) -> None:

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from inclusaai_ai_core import BaseInferencePipeline
 from inclusaai_contracts.events import VideoFrame
 from inclusaai_kafka_clients.topics import VIDEO_FRAME_SUBSCRIPTION
+from pydantic import BaseModel
 
 from app.config import Settings
 from app.detection import extract_landmarks

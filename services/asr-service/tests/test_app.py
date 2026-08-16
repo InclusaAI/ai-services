@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
-from inclusaai_ai_core import create_app
-
 from app.config import Settings
 from app.pipeline import AsrPipeline
+from fastapi.testclient import TestClient
+from inclusaai_ai_core import create_app
 
 
 def test_health_metrics_and_root(settings: Settings) -> None:

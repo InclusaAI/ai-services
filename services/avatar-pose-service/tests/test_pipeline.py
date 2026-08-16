@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import TranscriptSegment
-
 from app.config import Settings
 from app.inference.engine import PoseEngine
 from app.pipeline import AvatarPosePipeline
 from app.postprocessing import to_frames
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import TranscriptSegment
 
 
 def test_engine_generates_frames(settings: Settings) -> None:

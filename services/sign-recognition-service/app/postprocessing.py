@@ -8,7 +8,9 @@ from inclusaai_utils import new_id
 from app.inference.engine import Recognition
 
 
-def to_result(frame: VideoFrame, recognition: Recognition, sign_language: str) -> SignRecognitionResult:
+def to_result(
+    frame: VideoFrame, recognition: Recognition, sign_language: str
+) -> SignRecognitionResult:
     return SignRecognitionResult(
         session_id=frame.session_id,
         signer_id=frame.presenter_id,

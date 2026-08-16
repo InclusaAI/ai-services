@@ -8,11 +8,10 @@ how to load the model, and how to turn one input event into output event(s).
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from inclusaai_ai_core import BaseInferencePipeline
 from inclusaai_contracts.events import AudioChunk
 from inclusaai_kafka_clients.topics import AUDIO_CHUNK_SUBSCRIPTION
+from pydantic import BaseModel
 
 from app.config import Settings
 from app.inference.engine import AsrEngine

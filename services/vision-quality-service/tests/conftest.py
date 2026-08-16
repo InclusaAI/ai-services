@@ -3,10 +3,8 @@ from __future__ import annotations
 import base64
 
 import pytest
-
-from inclusaai_contracts.events import VideoFrame
-
 from app.config import Settings
+from inclusaai_contracts.events import VideoFrame
 
 
 @pytest.fixture

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from pydantic import BaseModel
-
 from inclusaai_ai_core import BaseInferencePipeline
 from inclusaai_contracts.events import AccessibilityChannel, TranslationResult
+from pydantic import BaseModel
 
 from app.config import Settings
 from app.inference.engine import TtsEngine

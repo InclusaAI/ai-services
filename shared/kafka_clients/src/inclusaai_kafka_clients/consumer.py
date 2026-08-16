@@ -6,11 +6,11 @@ import json
 from collections.abc import AsyncIterator
 
 from aiokafka import AIOKafkaConsumer
+from inclusaai_contracts import schema_registry
+from inclusaai_telemetry import EVENTS_CONSUMED, get_logger
 from pydantic import BaseModel
 
-from inclusaai_contracts import schema_registry
 from inclusaai_kafka_clients.topics import topic_to_event_key
-from inclusaai_telemetry import EVENTS_CONSUMED, get_logger
 
 log = get_logger(__name__)
 

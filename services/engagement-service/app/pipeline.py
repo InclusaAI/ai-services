@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import asyncio
 
-from pydantic import BaseModel
-
 from inclusaai_ai_core import BaseInferencePipeline
 from inclusaai_contracts.events import ParticipantEvent
 from inclusaai_kafka_clients.topics import PARTICIPANT_SUBSCRIPTION
+from pydantic import BaseModel
 
 from app.aggregation import SessionEngagementAggregator
 from app.config import Settings
@@ -52,7 +51,7 @@ class EngagementPipeline(BaseInferencePipeline):
         while not self._stop.is_set():
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.window_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             await self._flush()
 

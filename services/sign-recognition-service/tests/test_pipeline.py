@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import base64
 
-from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import VideoFrame
-
 from app.config import Settings
 from app.detection import extract_landmarks
 from app.inference.engine import SignEngine
 from app.pipeline import SignPipeline
 from app.postprocessing import to_result
 from app.preprocessing import decode_frame
+from inclusaai_contracts import schema_registry
+from inclusaai_contracts.events import VideoFrame
 
 
 def test_engine_stub_recognizes(settings: Settings, video_frame: VideoFrame) -> None:

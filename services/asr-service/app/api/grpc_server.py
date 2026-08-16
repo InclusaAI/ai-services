@@ -29,7 +29,7 @@ def create_grpc_server(engine: AsrEngine, settings: Settings) -> Any:
             "gRPC stubs are not generated. Run `make gen-contracts` first."
         ) from exc
 
-    class AsrServicer(asr_pb2_grpc.AsrServiceServicer):  # type: ignore[misc, name-defined]
+    class AsrServicer(asr_pb2_grpc.AsrServiceServicer):
         async def StreamingRecognize(self, request_iterator: Any, context: Any) -> Any:
             async for _frame in request_iterator:
                 # TODO(model-integration): map AudioFrame -> engine.transcribe -> Transcript

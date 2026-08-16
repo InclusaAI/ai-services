@@ -7,7 +7,6 @@ the Kafka pipeline uses, so you can exercise the model without a broker.
 from __future__ import annotations
 
 from fastapi import APIRouter
-
 from inclusaai_contracts.events import AudioChunk, TranscriptSegment
 
 from app.config import Settings
