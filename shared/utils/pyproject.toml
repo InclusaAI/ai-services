@@ -1,0 +1,13 @@
+[project]
+name = "inclusaai-utils"
+version = "0.0.0"
+description = "Small shared helpers (time, ids) for InclusaAI inference services."
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inclusaai_utils"]

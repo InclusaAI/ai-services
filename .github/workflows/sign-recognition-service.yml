@@ -1,0 +1,21 @@
+name: sign-recognition-service
+
+on:
+  push:
+    paths:
+      - 'services/sign-recognition-service/**'
+      - 'shared/**'
+      - '.github/workflows/sign-recognition-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/sign-recognition-service/**'
+      - 'shared/**'
+      - '.github/workflows/sign-recognition-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: sign-recognition-service

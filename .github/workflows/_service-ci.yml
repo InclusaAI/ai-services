@@ -1,0 +1,57 @@
+name: service-ci
+
+# Reusable CI for one standalone service project. Each service has a thin caller
+# workflow (e.g. asr-service.yml) that triggers this on its own paths, so services
+# build and test independently (they have separate uv.locks and CUDA stacks).
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: Directory name under services/
+        required: true
+        type: string
+
+jobs:
+  lint-type:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      # ruff + mypy live in the ROOT dev group; run them from the root env, which
+      # also has the shared libs installed so inclusaai_* imports resolve.
+      - name: Sync root workspace
+        run: uv sync
+      - name: Ruff
+        run: uv run ruff check "services/${{ inputs.service }}"
+      - name: Mypy
+        run: uv run mypy "services/${{ inputs.service }}/app"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      # Tests run in the SERVICE env (its own lock: pytest + editable shared libs).
+      - name: Sync service
+        working-directory: services/${{ inputs.service }}
+        run: uv sync
+      - name: Pytest
+        working-directory: services/${{ inputs.service }}
+        run: uv run pytest -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Built from the repo root so the shared/ path-deps are in the build context.
+      # CPU/slim base only here; GPU images build on a CUDA-enabled runner in
+      # staging/prod (see docker/python-cuda-base.Dockerfile).
+      - name: Docker build (no push)
+        run: >
+          docker build
+          -f "services/${{ inputs.service }}/Dockerfile"
+          -t "inclusaai/${{ inputs.service }}:ci" .

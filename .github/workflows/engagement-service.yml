@@ -1,0 +1,21 @@
+name: engagement-service
+
+on:
+  push:
+    paths:
+      - 'services/engagement-service/**'
+      - 'shared/**'
+      - '.github/workflows/engagement-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/engagement-service/**'
+      - 'shared/**'
+      - '.github/workflows/engagement-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: engagement-service

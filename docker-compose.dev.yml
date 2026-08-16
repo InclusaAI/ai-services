@@ -1,0 +1,112 @@
+# Local development dependencies for ai-services.
+#
+#   docker compose -f docker-compose.dev.yml up -d      (or: make dev-up)
+#
+# Endpoints match .env.example. Nothing here is production config — redpanda stands
+# in for the managed Kafka, and MLflow/MinIO stand in for the infra-hosted registry
+# + artifact store (ADR-0005). Services themselves are run separately with uvicorn.
+name: inclusaai-ai-dev
+
+services:
+  # ---- Kafka API (redpanda speaks the Kafka protocol, no ZooKeeper) ----
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"     # host clients (KAFKA_BOOTSTRAP_SERVERS=localhost:9092)
+      - "9644:9644"     # admin API
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- Object storage (S3-compatible) — MLflow artifact backend ----
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"     # S3 API (MLFLOW_S3_ENDPOINT_URL=http://localhost:9000)
+      - "9001:9001"     # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- one-shot: create the MLflow artifact bucket ----
+  createbuckets:
+    image: minio/mc:RELEASE.2024-09-16T17-43-14Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/mlflow &&
+      echo 'bucket local/mlflow ready'
+      "
+
+  # ---- MLflow backing store ----
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- MLflow tracking server + model registry (read-only usage from services) ----
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    command: >
+      /bin/sh -c "pip install --no-cache-dir psycopg2-binary boto3 >/dev/null &&
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --artifacts-destination s3://mlflow/
+      --serve-artifacts"
+    ports:
+      - "5000:5000"     # MLFLOW_TRACKING_URI=http://localhost:5000
+
+  # ---- OpenTelemetry collector (receives OTLP traces from services) ----
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./docker/otel-collector.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"     # OTLP gRPC (OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317)
+      - "4318:4318"     # OTLP HTTP
+
+volumes:
+  minio-data:
+  pg-data:

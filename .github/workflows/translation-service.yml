@@ -1,0 +1,21 @@
+name: translation-service
+
+on:
+  push:
+    paths:
+      - 'services/translation-service/**'
+      - 'shared/**'
+      - '.github/workflows/translation-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/translation-service/**'
+      - 'shared/**'
+      - '.github/workflows/translation-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: translation-service

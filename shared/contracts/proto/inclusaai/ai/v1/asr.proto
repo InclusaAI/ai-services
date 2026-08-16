@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package inclusaai.ai.v1;
+
+import "inclusaai/ai/v1/common.proto";
+
+// PLACEHOLDER. Synchronous streaming ASR surface consumed by platform-backend
+// (session-service / presenter-assist-service) where request/response is needed
+// outside the Kafka pipeline. See platform-backend-IMPLEMENTATION.md §5.
+service AsrService {
+  rpc StreamingRecognize (stream AudioFrame) returns (stream Transcript);
+}
+
+message AudioFrame {
+  SessionRef ref = 1;
+  bytes audio = 2;
+  int32 sample_rate = 3;
+  int64 timestamp_ms = 4;
+}
+
+message Transcript {
+  string text = 1;
+  bool is_final = 2;
+  int64 start_ms = 3;
+  int64 end_ms = 4;
+  float confidence = 5;
+}

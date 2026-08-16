@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package inclusaai.ai.v1;
+
+// PLACEHOLDER. Speech synthesis surface (Deaf->Hearing direction).
+service TtsService {
+  rpc Synthesize (SynthesizeRequest) returns (stream TtsChunk);
+}
+
+message SynthesizeRequest {
+  string text = 1;
+  string language = 2;
+}
+
+message TtsChunk {
+  bytes audio = 1;
+  int32 sample_rate = 2;
+  int32 sequence = 3;
+}

@@ -1,0 +1,40 @@
+name: shared
+
+# Lint / type-check / test the shared-library workspace + repo tooling.
+on:
+  push:
+    paths:
+      - 'shared/**'
+      - 'pyproject.toml'
+      - 'scripts/gen_contracts.py'
+      - '.github/workflows/shared.yml'
+  pull_request:
+    paths:
+      - 'shared/**'
+      - 'pyproject.toml'
+      - 'scripts/gen_contracts.py'
+      - '.github/workflows/shared.yml'
+
+jobs:
+  lint-type-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Sync root workspace
+        run: uv sync
+      - name: Generate contracts (gRPC stubs + JSON schemas)
+        run: uv run python scripts/gen_contracts.py
+      - name: Ruff
+        run: uv run ruff check shared scripts
+      - name: Mypy
+        run: uv run mypy shared
+      - name: Pytest (shared)
+        run: |
+          set +e
+          uv run pytest shared -q
+          code=$?
+          # exit 5 == "no tests collected"; treat as success for the scaffold.
+          [ $code -eq 0 ] || [ $code -eq 5 ]
