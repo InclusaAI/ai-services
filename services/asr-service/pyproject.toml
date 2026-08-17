@@ -13,8 +13,10 @@ dependencies = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
     "grpcio>=1.66",
-    # --- ASR runtime: pick/pin at model-integration time (kept loose in the scaffold) ---
-    # "faster-whisper>=1.0",
+    # --- ASR runtime (model-integration) ---
+    "faster-whisper>=1.0",  # CTranslate2 Whisper; CPU int8 in dev, CUDA in prod
+    "numpy>=1.26",          # PCM s16le -> float32 conversion for the model
+    # GPU builds swap in the CUDA onnxruntime at image-build time:
     # "onnxruntime-gpu>=1.18",
 ]
 

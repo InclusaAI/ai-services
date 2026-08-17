@@ -9,6 +9,7 @@ whole service — Kafka wiring, contracts, health/metrics — is exercisable off
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from inclusaai_model_loading import ModelNotAvailable, measure_latency
 from inclusaai_telemetry import get_logger
@@ -33,11 +34,32 @@ class Transcription:
 class AsrEngine:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._model: object | None = None
+        self._model: Any = None
         self._stub = True
 
     def load(self) -> None:
-        """Pull the registered model. Stays in stub mode if none is configured/available."""
+        """Load the ASR model. Precedence: local faster-whisper (dev) > MLflow > stub.
+
+        Any failure degrades to the offline stub with a loud log, so the service stays
+        bootable — production readiness should treat a configured-but-unloadable model
+        as a hard failure, not a silent stub.
+        """
+        # DEV-ONLY: in-process faster-whisper, bypassing MLflow (see whisper_backend).
+        if self.settings.asr_whisper_size:
+            try:
+                from app.inference.whisper_backend import WhisperBackend
+
+                self._model = WhisperBackend(
+                    self.settings.asr_whisper_size,
+                    language=self.settings.transcript_language,
+                )
+                self._stub = False
+                log.info("asr.local_whisper", size=self.settings.asr_whisper_size)
+            except Exception as exc:  # noqa: BLE001 — degrade to stub, but say why
+                log.error("asr.local_whisper_unavailable", error=str(exc))
+                self._stub = True
+            return
+
         if not self.settings.model_name:
             log.warning("asr.stub_mode", reason="no model_name configured")
             self._stub = True
@@ -72,9 +94,17 @@ class AsrEngine:
     def _transcribe_model(
         self, pcm: bytes, *, sample_rate: int, base_ms: int
     ) -> list[Transcription]:
-        # TODO(model-integration): map to the registered model's pyfunc signature, e.g.
-        #   result = self._model.predict({"audio": pcm, "sample_rate": sample_rate})
-        # then translate segment offsets into absolute ms using base_ms.
-        raise NotImplementedError(
-            "Wire _transcribe_model to the registered ASR model's pyfunc signature."
-        )
+        # The model (MLflow pyfunc in prod, WhisperBackend in dev) shares one convention:
+        #   .predict({"audio": pcm, "sample_rate": sr}) -> [{"text","start","end","confidence"}]
+        # with segment offsets in seconds; translate them to absolute ms via base_ms.
+        result = self._model.predict({"audio": pcm, "sample_rate": sample_rate})
+        return [
+            Transcription(
+                text=seg["text"],
+                start_ms=base_ms + int(seg["start"] * 1000),
+                end_ms=base_ms + int(seg["end"] * 1000),
+                confidence=seg.get("confidence"),
+                is_final=True,
+            )
+            for seg in result
+        ]

@@ -17,6 +17,11 @@ class Settings(BaseServiceSettings):
     # Leave unset (None) to run the deterministic offline stub.
     model_name: str | None = "asr-whisper"
 
+    # DEV-ONLY escape hatch: when set (e.g. "base"), load faster-whisper IN-PROCESS
+    # and bypass MLflow entirely. Lets ASR run for real on a machine with no model
+    # registry. Takes precedence over model_name. Unset in staging/prod.
+    asr_whisper_size: str | None = None
+
     # ASR specifics
     target_sample_rate: int = 16000
     transcript_language: str = "en"

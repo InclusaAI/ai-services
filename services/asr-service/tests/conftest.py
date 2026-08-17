@@ -20,10 +20,13 @@ def settings() -> Settings:
 
 @pytest.fixture
 def audio_chunk() -> AudioChunk:
+    # pcm_s16le is the format decode_audio passes straight through; the payload is
+    # 10 placeholder bytes (the stub keys off length, not content).
     return AudioChunk(
         session_id="s1",
         speaker_id="spk1",
         sequence=0,
         timestamp_ms=1000,
+        encoding="pcm_s16le",
         payload_b64=base64.b64encode(b"0123456789").decode(),
     )

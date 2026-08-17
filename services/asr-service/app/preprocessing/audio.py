@@ -8,10 +8,17 @@ from inclusaai_contracts.events import AudioChunk
 
 
 def decode_audio(chunk: AudioChunk) -> bytes:
-    """Decode a transported audio chunk to raw bytes.
+    """Decode a transported audio chunk to raw PCM s16le bytes.
 
-    TODO(codec): the placeholder transport carries base64 bytes directly. A real
-    implementation should, when ``chunk.encoding == "opus"``, decode to PCM and
-    resample from ``chunk.sample_rate`` to the model's ``target_sample_rate``.
+    The transport carries the (possibly encoded) audio base64 in ``payload_b64``.
+    ``pcm_s16le`` is returned as-is (already the raw PCM the model wants). ``opus``
+    decode + resampling from ``chunk.sample_rate`` to the model's ``target_sample_rate``
+    is not implemented yet, so it fails loudly rather than feeding the model garbage.
     """
-    return base64.b64decode(chunk.payload_b64)
+    raw = base64.b64decode(chunk.payload_b64)
+    if chunk.encoding == "pcm_s16le":
+        return raw
+    raise NotImplementedError(
+        f"audio encoding {chunk.encoding!r} is not supported yet; send pcm_s16le "
+        "(opus decode + resample is a follow-up)."
+    )
