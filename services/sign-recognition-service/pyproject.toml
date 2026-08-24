@@ -10,13 +10,25 @@ dependencies = [
     "inclusaai-contracts",
     "inclusaai-model-loading",
     "inclusaai-utils",
+    "inclusaai-sign-vocab",
+    "inclusaai-pose-tools",
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
-    # --- service runtime: pin at model-integration time (kept out of the scaffold) ---
-    # "mediapipe>=0.10",
-    # "opencv-python-headless>=4.9",
-    # "numpy>=1.26",
+    # pose-format is the internal pose representation (pure-Python: numpy/scipy, no protobuf pin) —
+    # the shared container for extracted poses, symmetric with avatar-pose's generated poses.
+    "pose-format>=0.14",
 ]
+
+# Real MediaPipe Holistic extraction (app/detection.py) is fully wired but intentionally NOT a
+# declared dependency: MediaPipe Holistic (mp.solutions.holistic, which pose-format's load_holistic
+# drives) pins protobuf<5, while this monorepo's contracts + OpenTelemetry stack is on protobuf>=5
+# (currently 7.x) — an unsatisfiable single-environment conflict, and contracts is a base dep so no
+# optional extra can dodge it. Extraction therefore degrades to a deterministic fake pose with a loud
+# `sign.mediapipe_unavailable` log (mirroring asr degrading without faster-whisper), keeping the
+# service bootable and the pipeline exercisable offline. To exercise the real path, install
+# `pose-format[mediapipe]` + `opencv-python-headless` into a protobuf<5 environment and set
+# SIGN_RUN_MEDIAPIPE_TESTS=1. Reconciling this (monorepo-wide protobuf, or the MediaPipe Tasks
+# HolisticLandmarker) is a tracked follow-up; ASL *content* stays gated on ADR-0002 regardless.
 
 # Standalone project (NOT a workspace member): shared libs are editable path deps so
 # this service keeps its OWN uv.lock and can pin a CUDA/torch stack independent of
@@ -28,6 +40,8 @@ inclusaai-kafka-clients = { path = "../../shared/kafka_clients", editable = true
 inclusaai-contracts = { path = "../../shared/contracts", editable = true }
 inclusaai-model-loading = { path = "../../shared/model_loading", editable = true }
 inclusaai-utils = { path = "../../shared/utils", editable = true }
+inclusaai-sign-vocab = { path = "../../shared/sign_vocab", editable = true }
+inclusaai-pose-tools = { path = "../../shared/pose_tools", editable = true }
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]

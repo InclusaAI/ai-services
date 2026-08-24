@@ -1,7 +1,9 @@
 # Root of the ai-services monorepo.
 #
-# This root is a `uv` WORKSPACE that aggregates the pure-Python shared
-# libraries under `shared/*` (one shared lockfile — fine, no CUDA there).
+# This root is a `uv` WORKSPACE that aggregates the shared libraries under
+# `shared/*` into one shared lockfile. Most are pure-Python; `pose_tools` pulls
+# in numpy/scipy (via pose-format) — prebuilt wheels, still no CUDA/GPU stack
+# here.
 #
 # The inference services under `services/*` are DELIBERATELY NOT workspace
 # members: each is a standalone `uv` project with its own pyproject.toml and

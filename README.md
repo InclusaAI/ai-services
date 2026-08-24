@@ -56,7 +56,9 @@ ai-services/
 │   ├── telemetry/            # structlog logging, Prometheus /metrics, OTel tracing
 │   ├── kafka_clients/        # aiokafka consumer/producer wrappers, topics, usage aggregation
 │   ├── model_loading/        # MLflow registry read-by-version + benchmarking
-│   └── utils/                # small shared helpers
+│   ├── utils/                # small shared helpers
+│   ├── sign_vocab/           # closed constrained ASL vocabulary — phrases + fingerspelling + skeleton (avatar-pose ⇄ sign-recognition)
+│   └── pose_tools/           # pose-format (.pose) interchange: Pose ⇄ 51-pt skeleton ⇄ wire keypoints (both sign services)
 ├── services/                 # 7 STANDALONE uv projects (own pyproject.toml + uv.lock + Dockerfile)
 ├── docker/                   # python-cuda-base.Dockerfile (GPU base) + OTel config
 ├── scripts/                  # gen_contracts.py, bootstrap.sh, dev_up.sh
