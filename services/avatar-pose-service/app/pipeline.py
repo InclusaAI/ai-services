@@ -28,7 +28,7 @@ class AvatarPosePipeline(BaseInferencePipeline):
             return
         if not self.should_generate(model.session_id):
             return
-        phrase_id, frames = self.engine.generate(model.text)
-        for frame in to_frames(model, phrase_id, frames, self.fps):
+        phrase_id, pose = self.engine.generate(model.text)
+        for frame in to_frames(model, phrase_id, pose, self.fps):
             # one usage unit per emitted pose frame
             await self.publish("ai.avatar.pose.frame", frame, key=model.session_id)
