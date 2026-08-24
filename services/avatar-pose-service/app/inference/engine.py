@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from inclusaai_model_loading import ModelNotAvailable, load_model, measure_latency
 from inclusaai_telemetry import get_logger
+from pose_format import Pose
 
 from app import vocabulary
 from app.config import Settings
-from app.vocabulary import PoseFrames
 
 log = get_logger(__name__)
 
@@ -35,9 +35,9 @@ class PoseEngine:
         except ModelNotAvailable as exc:
             log.error("avatar.model_unavailable", error=str(exc))
 
-    def generate(self, text: str) -> tuple[str | None, PoseFrames]:
+    def generate(self, text: str) -> tuple[str | None, Pose]:
         with measure_latency(self.settings.service_name, self.settings.model_name or "vocab"):
             if self._model is None:
-                return vocabulary.lookup(text)
-            # TODO(model-integration): self._model.predict({"text": text}) -> pose frames
+                return vocabulary.generate(text)
+            # TODO(model-integration): self._model.predict({"text": text}) -> Pose
             raise NotImplementedError("Wire PoseEngine.generate to the registered model.")
