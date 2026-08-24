@@ -19,5 +19,12 @@ constrained-vocabulary phrase library (ADR-0002).
 > (IMPLEMENTATION §5).
 
 The vocabulary is the **same closed set** the sign-recognition service classifies
-against (symmetric vocabulary). A learned text→pose model is an optional future
-replacement for the lookup. See `services/asr-service` for the fuller reference.
+against — both import [`inclusaai_sign_vocab`](../../shared/sign_vocab/README.md), the
+single source of truth for the symmetric vocabulary (ADR-0002), so the two can't drift.
+`app/vocabulary.py` turns a matched phrase into a deterministic full-skeleton pose
+sequence — a [`pose-format`](https://github.com/sign-language-processing/pose) `Pose` built via
+[`inclusaai_pose_tools`](../../shared/pose_tools/README.md), the same representation
+`sign-recognition-service` extracts into (matched-pair symmetry now at the representation level too).
+It is a placeholder for real motion data (see that module) and fingerspells out-of-vocabulary text.
+A learned text→pose model is an optional future replacement for this lookup. See
+`services/asr-service` for the fuller reference.
