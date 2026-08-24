@@ -32,7 +32,7 @@ class SignPipeline(BaseInferencePipeline):
     async def handle(self, event_key: str, model: BaseModel) -> None:
         if not isinstance(model, VideoFrame):
             return
-        landmarks = extract_landmarks(decode_frame(model))
-        for recognition in self.engine.recognize(landmarks):
+        pose = extract_landmarks(decode_frame(model))
+        for recognition in self.engine.recognize(pose):
             result = to_result(model, recognition, self.sign_language)
             await self.publish("ai.sign.recognition.result", result, key=model.session_id)
