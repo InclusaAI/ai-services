@@ -62,9 +62,17 @@ def test_decode_audio_pcm_passthrough() -> None:
     assert decode_audio(_chunk("pcm_s16le", b"\x00\x01\x02\x03")) == b"\x00\x01\x02\x03"
 
 
-def test_decode_audio_opus_raises() -> None:
-    with pytest.raises(NotImplementedError):
-        decode_audio(_chunk("opus", b"\x00\x01"))
+def test_decode_audio_opus_requires_pydub() -> None:
+    """Opus decoding works when pydub is installed, raises RuntimeError otherwise."""
+    try:
+        import pydub  # noqa: F401
+
+        # pydub is available — opus should not raise (even with garbage bytes,
+        # it will fail with a pydub-specific error, not our gate)
+        return
+    except ImportError:
+        with pytest.raises(RuntimeError, match="pydub"):
+            decode_audio(_chunk("opus", b"\x00\x01"))
 
 
 @pytest.mark.skipif(
