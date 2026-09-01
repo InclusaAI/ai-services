@@ -17,16 +17,51 @@
 | `proto/inclusaai/ai/v1/*.proto` | Placeholder gRPC service defs (ASR streaming, translation, TTS) consumed by `platform-backend`. |
 | `src/inclusaai_contracts/grpc_stubs/` | Generated `*_pb2.py` / `*_pb2_grpc.py` land here (git-ignored). |
 | `src/inclusaai_contracts/schemas/` | JSON Schemas **generated** from the pydantic models (git-ignored). |
+| `src/inclusaai_contracts/typescript/` | TypeScript interfaces **generated** from the pydantic models (for `web-apps` / `mobile-app`). |
 
 ## Regenerate
 ```
 uv run python scripts/gen_contracts.py     # from repo root
 ```
-This (1) runs `grpcio-tools` protoc over `proto/` → `grpc_stubs/`, and (2) dumps
-`model_json_schema()` for every event into `schemas/`.
+This generates three artifact sets from the pydantic models in `events.py`:
+
+1. **gRPC stubs** — `grpcio-tools` protoc over `proto/` → `grpc_stubs/`
+2. **JSON Schemas** — `model_json_schema()` for every event → `schemas/<event_key>.schema.json`
+3. **TypeScript interfaces** — typed interfaces for every model → `typescript/events.ts`
+
+## TypeScript types for frontend
+
+The generated `typescript/events.ts` file contains:
+- **Enum definitions** (e.g. `AccessibilityChannel`)
+- **Interface definitions** for every event payload (e.g. `TranscriptSegment`, `AvatarPoseFrame`)
+- **Nested types** (e.g. `PoseKeypoint`)
+- **Event key → type map** (`AiServiceEvents`) for type-safe Kafka consumers
+- **Topic name constants** (`AI_TOPICS`) for topic routing
+
+Usage in `web-apps` / `mobile-app`:
+```typescript
+import type { TranscriptSegment, AvatarPoseFrame, AiServiceEvents } from '@inclusaai/contracts';
+
+// Type-safe event handling:
+function handleEvent<K extends keyof AiServiceEvents>(
+  topic: K,
+  payload: AiServiceEvents[K]
+) {
+  switch (topic) {
+    case 'ai.transcript.segment':
+      // payload is TranscriptSegment
+      console.log(payload.text);
+      break;
+    case 'ai.avatar.pose.frame':
+      // payload is AvatarPoseFrame
+      renderSkeleton(payload.keypoints);
+      break;
+  }
+}
+```
 
 ## Design note
-We keep the pydantic models as the single source of truth and *derive* the JSON
-Schemas from them (rather than hand-maintaining parallel `.json` files) so the two
-can never drift. The real `@inclusaai/kafka-contracts` package may invert this
-(schema-first); adapt the generator when it lands.
+We keep the pydantic models as the single source of truth and *derive* all artifacts
+from them (JSON Schemas, TypeScript types, gRPC stubs) so they can never drift.
+The real `@inclusaai/kafka-contracts` package may invert this (schema-first);
+adapt the generator when it lands.
