@@ -12,6 +12,7 @@ dependencies = [
     "inclusaai-utils",
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",  # required by FastAPI for file upload
     "grpcio>=1.66",
     # --- ASR runtime (model-integration) ---
     "faster-whisper>=1.0",  # CTranslate2 Whisper; CPU int8 in dev, CUDA in prod
