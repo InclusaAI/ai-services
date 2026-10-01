@@ -1,0 +1,21 @@
+name: asr-service
+
+on:
+  push:
+    paths:
+      - 'services/asr-service/**'
+      - 'shared/**'
+      - '.github/workflows/asr-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/asr-service/**'
+      - 'shared/**'
+      - '.github/workflows/asr-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: asr-service

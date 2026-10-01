@@ -1,0 +1,21 @@
+name: avatar-pose-service
+
+on:
+  push:
+    paths:
+      - 'services/avatar-pose-service/**'
+      - 'shared/**'
+      - '.github/workflows/avatar-pose-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/avatar-pose-service/**'
+      - 'shared/**'
+      - '.github/workflows/avatar-pose-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: avatar-pose-service

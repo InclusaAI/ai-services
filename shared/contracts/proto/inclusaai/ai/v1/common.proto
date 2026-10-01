@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package inclusaai.ai.v1;
+
+// PLACEHOLDER — replace with the real @inclusaai/grpc-contracts source.
+// Shared messages referenced by the per-capability service definitions.
+
+message SessionRef {
+  string session_id = 1;
+  string participant_id = 2;
+}

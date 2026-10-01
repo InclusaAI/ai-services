@@ -1,0 +1,21 @@
+name: vision-quality-service
+
+on:
+  push:
+    paths:
+      - 'services/vision-quality-service/**'
+      - 'shared/**'
+      - '.github/workflows/vision-quality-service.yml'
+      - '.github/workflows/_service-ci.yml'
+  pull_request:
+    paths:
+      - 'services/vision-quality-service/**'
+      - 'shared/**'
+      - '.github/workflows/vision-quality-service.yml'
+      - '.github/workflows/_service-ci.yml'
+
+jobs:
+  ci:
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: vision-quality-service

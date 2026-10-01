@@ -1,0 +1,58 @@
+# Root of the ai-services monorepo.
+#
+# This root is a `uv` WORKSPACE that aggregates the shared libraries under
+# `shared/*` into one shared lockfile. Most are pure-Python; `pose_tools` pulls
+# in numpy/scipy (via pose-format) — prebuilt wheels, still no CUDA/GPU stack
+# here.
+#
+# The inference services under `services/*` are DELIBERATELY NOT workspace
+# members: each is a standalone `uv` project with its own pyproject.toml and
+# uv.lock, so that services needing conflicting CUDA/PyTorch versions never
+# have to share a resolver environment (see ai-services-IMPLEMENTATION.md §4).
+# Services depend on the shared libs via editable path sources.
+#
+# This root project is virtual (`package = false`) — it is never built or
+# published; it only carries repo-wide dev tooling + the workspace definition.
+
+[project]
+name = "ai-services-workspace"
+version = "0.0.0"
+description = "InclusaAI production AI inference platform — shared-library workspace + repo tooling"
+requires-python = ">=3.11"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["shared/*"]
+
+# Repo-wide dev tooling. Install with: `uv sync` at the repo root.
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "grpcio-tools>=1.66",   # protoc for placeholder .proto -> python stub generation
+    "jsonschema>=4",        # validates example event payloads against shared/contracts schemas
+]
+
+# ---------------------------------------------------------------------------
+# Tooling config shared across every package in the repo.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["**/grpc_stubs/*_pb2*.py", "**/*_pb2.py", "**/*_pb2_grpc.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+ignore_missing_imports = true
+exclude = ["_pb2", "grpc_stubs"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

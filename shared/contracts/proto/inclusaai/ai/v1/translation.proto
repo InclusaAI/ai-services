@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package inclusaai.ai.v1;
+
+// PLACEHOLDER. Synchronous text-to-text translation surface.
+service TranslationService {
+  rpc Translate (TranslateRequest) returns (TranslateResponse);
+}
+
+message TranslateRequest {
+  string source_language = 1;
+  string target_language = 2;
+  string text = 3;
+}
+
+message TranslateResponse {
+  string translated_text = 1;
+}

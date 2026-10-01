@@ -1,0 +1,44 @@
+[project]
+name = "vision-quality-service"
+version = "0.0.0"
+description = "InclusaAI vision-quality service: video frames -> ai.vision.quality.signal (presenter framing/lighting/pace assist)."
+requires-python = ">=3.11"
+dependencies = [
+    "inclusaai-ai-core",
+    "inclusaai-telemetry",
+    "inclusaai-kafka-clients",
+    "inclusaai-contracts",
+    "inclusaai-model-loading",
+    "inclusaai-utils",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    # --- service runtime: pin at model-integration time (kept out of the scaffold) ---
+    # "mediapipe>=0.10",
+    # "opencv-python-headless>=4.9",
+    # "numpy>=1.26",
+]
+
+# Standalone project (NOT a workspace member): shared libs are editable path deps so
+# this service keeps its OWN uv.lock and can pin a CUDA/torch stack independent of
+# its siblings (ai-services-IMPLEMENTATION.md §4).
+[tool.uv.sources]
+inclusaai-ai-core = { path = "../../shared/ai_core", editable = true }
+inclusaai-telemetry = { path = "../../shared/telemetry", editable = true }
+inclusaai-kafka-clients = { path = "../../shared/kafka_clients", editable = true }
+inclusaai-contracts = { path = "../../shared/contracts", editable = true }
+inclusaai-model-loading = { path = "../../shared/model_loading", editable = true }
+inclusaai-utils = { path = "../../shared/utils", editable = true }
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

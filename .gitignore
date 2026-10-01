@@ -1,0 +1,48 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- uv / virtualenvs ----
+.venv/
+venv/
+# NOTE: uv.lock files ARE committed (one per service + one for the shared workspace).
+
+# ---- Environment ----
+.env
+.env.*
+!.env.example
+
+# ---- Models & data (pulled from MLflow registry / object storage, never committed) ----
+models/*
+!models/README.md
+*.pt
+*.pth
+*.onnx
+*.ckpt
+mlruns/
+
+# ---- Generated contract artifacts (regenerate via scripts/gen_contracts.py) ----
+# gRPC stubs: flat files + the mirrored proto package tree. The committed
+# grpc_stubs/__init__.py stays; only generated content is ignored.
+shared/contracts/src/inclusaai_contracts/grpc_stubs/**/*_pb2.py
+shared/contracts/src/inclusaai_contracts/grpc_stubs/**/*_pb2_grpc.py
+shared/contracts/src/inclusaai_contracts/grpc_stubs/**/*_pb2.pyi
+shared/contracts/src/inclusaai_contracts/grpc_stubs/inclusaai/
+# JSON Schemas derived from the pydantic event models.
+shared/contracts/src/inclusaai_contracts/schemas/*.schema.json
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
