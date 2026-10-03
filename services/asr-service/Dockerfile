@@ -21,6 +21,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /workspace
 # Preserve the monorepo layout so ../../shared path-deps resolve.
+COPY pyproject.toml /workspace/pyproject.toml
 COPY shared/ /workspace/shared/
 COPY services/asr-service/ /workspace/services/asr-service/
 
