@@ -2,15 +2,17 @@
 
 These are **mediapipe-free**: they target a *known* stub code via
 ``inclusaai_pose_tools.pose_for_code`` (guaranteeing the test helper and the engine
-agree by construction) and exercise the offline degrade path of ``extract_landmarks``
-(no MediaPipe/opencv needed). The real MediaPipe extraction path is smoke-tested
-separately, gated behind ``SIGN_RUN_MEDIAPIPE_TESTS=1`` (mirrors asr's
-``ASR_RUN_WHISPER_TESTS``).
+agree by construction), drive the rule-based fingerspelling classifier with
+synthetic handshape poses (``tests/handshapes.py``), and exercise the offline
+degrade path of ``extract_landmarks`` (no MediaPipe/opencv needed). The real
+MediaPipe extraction path is smoke-tested separately, gated behind
+``SIGN_RUN_MEDIAPIPE_TESTS=1`` (mirrors asr's ``ASR_RUN_WHISPER_TESTS``).
 """
 
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import pytest
 from app.config import Settings
@@ -24,20 +26,22 @@ from inclusaai_contracts.events import VideoFrame
 from inclusaai_pose_tools import frame_count, pose_for_code, pose_to_keypoints
 from inclusaai_sign_vocab import FINGERSPELL_ALPHABET, NUM_KEYPOINTS, phrase_ids
 
+from tests.handshapes import handshape_pose
+
 _ALLOWED_LABELS = set(phrase_ids()) | set(FINGERSPELL_ALPHABET)
 
 
 def test_engine_stub_recognizes(settings: Settings) -> None:
     engine = SignEngine(settings)
     engine.load()
-    out = engine.recognize(pose_for_code(1))  # code 1: not a fingerspell multiple
-    assert out and out[0].label
+    out = engine.recognize(pose_for_code(1))  # no hand -> phrase stub path
+    assert out and out[0].label in phrase_ids()
 
 
 def test_stub_only_emits_closed_set_labels(settings: Settings) -> None:
-    """Matched-pair enforcement (recognition side): every label the stub can emit is
-    a closed-set phrase id or a fingerspelling letter — never anything the avatar
-    couldn't also produce (ADR-0002 symmetric vocabulary)."""
+    """Matched-pair enforcement (recognition side): every label the offline engine
+    can emit is a closed-set phrase id or a fingerspelling letter — never anything
+    the avatar couldn't also produce (ADR-0002 symmetric vocabulary)."""
     engine = SignEngine(settings)
     engine.load()
     for code in range(200):
@@ -47,12 +51,25 @@ def test_stub_only_emits_closed_set_labels(settings: Settings) -> None:
             assert recognition.label in FINGERSPELL_ALPHABET
 
 
-def test_fingerspelling_path_is_reachable(settings: Settings) -> None:
+def test_real_fingerspelling_path(settings: Settings) -> None:
+    """A posed handshape resolves to a REAL letter, not the phrase stub."""
     engine = SignEngine(settings)
     engine.load()
-    recognition = engine.recognize(pose_for_code(0))[0]  # code 0 routes to the fallback
+    recognition = engine.recognize(handshape_pose("v"))[0]
     assert recognition.is_fingerspelling
-    assert recognition.label in FINGERSPELL_ALPHABET
+    assert recognition.label == "v"
+    assert recognition.gloss == "V"
+
+
+def test_fingerspelling_falls_back_to_phrase_when_hand_absent(
+    settings: Settings,
+) -> None:
+    """A frame with no usable hand takes the closed-set phrase path."""
+    engine = SignEngine(settings)
+    engine.load()
+    recognition = engine.recognize(pose_for_code(0))[0]
+    assert not recognition.is_fingerspelling
+    assert recognition.label in phrase_ids()
 
 
 def test_empty_frame_is_not_recognized(settings: Settings) -> None:
@@ -78,6 +95,35 @@ def test_offline_extraction_yields_a_recognizable_pose(
     assert engine.recognize(pose)[0].label in _ALLOWED_LABELS
 
 
+def test_window_majority_vote(settings: Settings) -> None:
+    """A window's label is the per-frame majority — one minority frame can't flip it."""
+    engine = SignEngine(settings)
+    engine.load()
+    out = engine.recognize_window(
+        [handshape_pose("v"), handshape_pose("v"), handshape_pose("a")]
+    )
+    assert len(out) == 1
+    assert out[0].label == "v"
+    assert out[0].is_fingerspelling
+    assert out[0].confidence == pytest.approx(0.9)
+
+
+def test_window_votes_phrase_labels_too(settings: Settings) -> None:
+    engine = SignEngine(settings)
+    engine.load()
+    pose = pose_for_code(3)
+    out = engine.recognize_window([pose, pose])
+    assert len(out) == 1
+    assert out[0].label == engine.recognize(pose)[0].label
+    assert not out[0].is_fingerspelling
+
+
+def test_empty_window_emits_nothing(settings: Settings) -> None:
+    engine = SignEngine(settings)
+    engine.load()
+    assert engine.recognize_window([]) == []
+
+
 def test_to_result_is_contract_valid(settings: Settings, video_frame: VideoFrame) -> None:
     engine = SignEngine(settings)
     engine.load()
@@ -88,7 +134,21 @@ def test_to_result_is_contract_valid(settings: Settings, video_frame: VideoFrame
     assert validated.sign_language == "ASL"
 
 
-async def test_handle_publishes(settings: Settings, video_frame: VideoFrame, monkeypatch) -> None:
+def test_to_result_spans_window(settings: Settings, video_frame: VideoFrame) -> None:
+    """A windowed result spans first-to-last frame timestamps."""
+    engine = SignEngine(settings)
+    engine.load()
+    recognition = engine.recognize(handshape_pose("b"))[0]
+    result = to_result(
+        video_frame, recognition, settings.sign_language, start_ms=1000, end_ms=1400
+    )
+    assert result.start_ms == 1000
+    assert result.end_ms == 1400
+
+
+async def test_handle_buffers_until_window_full(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
     pipeline = SignPipeline(settings)
     pipeline.engine.load()
     published: list[tuple[str, object]] = []
@@ -97,8 +157,39 @@ async def test_handle_publishes(settings: Settings, video_frame: VideoFrame, mon
         published.append((event_key, payload))
 
     monkeypatch.setattr(pipeline, "publish", fake_publish)
-    await pipeline.handle("media.video.frame", video_frame)
-    assert published and published[0][0] == "ai.sign.recognition.result"
+    settings.gesture_window_frames = 3
+
+    await pipeline.handle("media.video.frame", video_frame)  # 1/3
+    await pipeline.handle("media.video.frame", video_frame)  # 2/3
+    assert not published, "no publish before the gesture window is full"
+
+    await pipeline.handle("media.video.frame", video_frame)  # 3/3 -> classify
+    assert len(published) == 1
+    assert published[0][0] == "ai.sign.recognition.result"
+
+
+async def test_handle_separates_sessions(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """Frames from different sessions buffer independently."""
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    settings.gesture_window_frames = 2
+    published: list[tuple[str, Any]] = []
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        published.append((event_key, payload))
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+
+    other = video_frame.model_copy(update={"session_id": "s2"})
+    await pipeline.handle("media.video.frame", video_frame)  # s1: 1/2
+    await pipeline.handle("media.video.frame", other)  # s2: 1/2
+    assert not published
+
+    await pipeline.handle("media.video.frame", video_frame)  # s1: 2/2 -> publish
+    assert len(published) == 1
+    assert published[0][1].session_id == "s1"
 
 
 @pytest.mark.skipif(

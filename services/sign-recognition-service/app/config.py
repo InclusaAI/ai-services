@@ -14,6 +14,10 @@ class Settings(BaseServiceSettings):
 
     # Video sampling rate the upstream media backend emits at (ADR-0007 starting point).
     video_sample_fps: int = 15
+    # Frames buffered per gesture before classification (~1s at 15fps). The recognizer
+    # votes over a window instead of emitting per-frame, so one noisy frame can't flip
+    # a result.
+    gesture_window_frames: int = 15
     # ASL only for MVP; the recognized vocabulary is the SAME closed set the avatar
     # generates from (symmetric vocabulary, ADR-0002).
     sign_language: str = "ASL"
