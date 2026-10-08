@@ -1,0 +1,262 @@
+# Single-VM production deployment for the InclusaAI ai-services monorepo.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Layout notes:
+# - All 7 inference services are DEFINED HERE but only built/started for services
+#   enabled in .env (ENABLED_SERVICES). Disabled ones cost nothing at runtime.
+# - Each service keeps its OWN image + dependency env (its Dockerfile runs
+#   `uv sync` against its own uv.lock) — deliberately NOT a shared env, because
+#   services need conflicting CUDA/PyTorch versions (root pyproject.toml §4).
+# - Infra mirrors docker-compose.dev.yml but with named healthchecks and no
+#   host port bindings except what's needed from outside the VM.
+#
+# Build from the REPO ROOT so shared/ path-dependencies resolve:
+#   docker compose -f docker-compose.prod.yml build
+
+name: inclusaai-ai-prod
+
+x-service-common: &service-common
+  restart: unless-stopped
+  depends_on:
+    redpanda:
+      condition: service_healthy
+    mlflow:
+      condition: service_healthy
+  environment: &service-env
+    ENV: ${ENV:-prod}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    # Kafka (redpanda in this compose; swap for managed Kafka via KAFKA_BOOTSTRAP_SERVERS)
+    KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+    # MLflow registry + artifact store (MinIO backend)
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    # Observability
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  healthcheck:
+    interval: 30s
+    timeout: 5s
+    start_period: 60s
+    retries: 3
+    test: ["CMD", "uv", "run", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else 1)"]
+
+services:
+  # ------------------------------------------------------------------
+  # Infra (same as dev, but persisted + no dev-only host conveniences)
+  # ------------------------------------------------------------------
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "${KAFKA_EXTERNAL_PORT:-9092}:9092"   # only if you need host-side clients
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  createbuckets:
+    image: minio/mc:RELEASE.2024-09-16T17-43-14Z
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+      mc mb --ignore-existing local/mlflow &&
+      echo 'bucket local/mlflow ready'
+      "
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mlflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mlflow}
+      POSTGRES_DB: ${POSTGRES_DB:-mlflow}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mlflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.2
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    command: >
+      /bin/sh -c "pip install --no-cache-dir psycopg2-binary boto3 >/dev/null &&
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql://${POSTGRES_USER:-mlflow}:${POSTGRES_PASSWORD:-mlflow}@postgres:5432/${POSTGRES_DB:-mlflow}
+      --artifacts-destination s3://mlflow/
+      --serve-artifacts"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./docker/otel-collector.yaml:/etc/otel/config.yaml:ro
+
+  # ------------------------------------------------------------------
+  # Inference services (7). Set ENABLED_SERVICES in .env to pick which run.
+  # ------------------------------------------------------------------
+  asr-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/asr-service/Dockerfile
+    image: inclusaai/asr-service:latest
+    profiles: ["asr"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: asr-service
+      KAFKA_CONSUMER_GROUP: asr-service
+      # Stub engine unless you register/promote a model (see .env.example).
+      MODEL_NAME: ${ASR_MODEL_NAME:-}
+      # DEV-ONLY faster-whisper in-process escape hatch; leave unset in prod.
+      ASR_WHISPER_SIZE: ${ASR_WHISPER_SIZE:-}
+    ports:
+      - "${ASR_HTTP_PORT:-8080}:8080"
+
+  sign-recognition-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/sign-recognition-service/Dockerfile
+    image: inclusaai/sign-recognition-service:latest
+    profiles: ["sign"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: sign-recognition-service
+      KAFKA_CONSUMER_GROUP: sign-recognition-service
+      MODEL_NAME: ${SIGN_MODEL_NAME:-sign-recognition-asl}
+      VIDEO_SAMPLE_FPS: ${VIDEO_SAMPLE_FPS:-15}
+    ports:
+      - "${SIGN_HTTP_PORT:-8081}:8080"
+
+  translation-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/translation-service/Dockerfile
+    image: inclusaai/translation-service:latest
+    profiles: ["translation"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: translation-service
+      KAFKA_CONSUMER_GROUP: translation-service
+      MODEL_NAME: ${TRANSLATION_MODEL_NAME:-}
+    ports:
+      - "${TRANSLATION_HTTP_PORT:-8082}:8080"
+
+  tts-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/tts-service/Dockerfile
+    image: inclusaai/tts-service:latest
+    profiles: ["tts"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: tts-service
+      KAFKA_CONSUMER_GROUP: tts-service
+      MODEL_NAME: ${TTS_MODEL_NAME:-}
+    ports:
+      - "${TTS_HTTP_PORT:-8083}:8080"
+
+  avatar-pose-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/avatar-pose-service/Dockerfile
+    image: inclusaai/avatar-pose-service:latest
+    profiles: ["avatar"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: avatar-pose-service
+      KAFKA_CONSUMER_GROUP: avatar-pose-service
+      MODEL_NAME: ${AVATAR_MODEL_NAME:-}
+    ports:
+      - "${AVATAR_HTTP_PORT:-8084}:8080"
+
+  vision-quality-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/vision-quality-service/Dockerfile
+    image: inclusaai/vision-quality-service:latest
+    profiles: ["vision"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: vision-quality-service
+      KAFKA_CONSUMER_GROUP: vision-quality-service
+      MODEL_NAME: ${VISION_MODEL_NAME:-}
+    ports:
+      - "${VISION_HTTP_PORT:-8085}:8080"
+
+  engagement-service:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: services/engagement-service/Dockerfile
+    image: inclusaai/engagement-service:latest
+    profiles: ["engagement"]
+    environment:
+      <<: *service-env
+      SERVICE_NAME: engagement-service
+      KAFKA_CONSUMER_GROUP: engagement-service
+      MODEL_NAME: ${ENGAGEMENT_MODEL_NAME:-}
+    ports:
+      - "${ENGAGEMENT_HTTP_PORT:-8086}:8080"
+
+volumes:
+  redpanda-data:
+  minio-data:
+  pg-data:
