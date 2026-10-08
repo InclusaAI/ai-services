@@ -44,9 +44,11 @@ uv sync
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-With no `MODEL_NAME` set (or the model not yet registered in MLflow), the engine
-runs in a **deterministic stub mode** so the service is runnable end-to-end before
-a real model is promoted through the ADR-0005 evaluation gate.
+With no `MODEL_NAME` set (the default), the engine runs in a **deterministic stub
+mode** so the service is runnable end-to-end before a real model is promoted through
+the ADR-0005 evaluation gate. To load a real model, configure `MODEL_NAME`,
+`MLFLOW_TRACKING_URI`, and the registry/artifact-store access in the deployment
+environment.
 
 ## Test
 

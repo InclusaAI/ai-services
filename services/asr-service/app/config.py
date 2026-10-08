@@ -15,7 +15,7 @@ class Settings(BaseServiceSettings):
 
     # Registered ASR model, pulled from MLflow by stage/version (ADR-0005).
     # Leave unset (None) to run the deterministic offline stub.
-    model_name: str | None = "asr-whisper"
+    model_name: str | None = None
 
     # DEV-ONLY escape hatch: when set (e.g. "base"), load faster-whisper IN-PROCESS
     # and bypass MLflow entirely. Lets ASR run for real on a machine with no model
