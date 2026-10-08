@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: asr-service
+    env: docker
+    dockerfilePath: ./services/asr-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: sign-recognition-service
+    env: docker
+    dockerfilePath: ./services/sign-recognition-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: translation-service
+    env: docker
+    dockerfilePath: ./services/translation-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: tts-service
+    env: docker
+    dockerfilePath: ./services/tts-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: avatar-pose-service
+    env: docker
+    dockerfilePath: ./services/avatar-pose-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: vision-quality-service
+    env: docker
+    dockerfilePath: ./services/vision-quality-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
+
+  - type: web
+    name: engagement-service
+    env: docker
+    dockerfilePath: ./services/engagement-service/Dockerfile
+    dockerContext: .
+    port: 8080
+    plan: standard
+    healthCheckPath: /healthz
