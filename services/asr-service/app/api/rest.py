@@ -8,6 +8,8 @@ Exposes:
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, File, UploadFile
 from inclusaai_contracts.events import AudioChunk, TranscriptSegment
 
@@ -34,7 +36,9 @@ def build_router(engine: AsrEngine, settings: Settings) -> APIRouter:
 
     @router.post("/transcribe/file", response_model=list[TranscriptSegment])
     async def transcribe_file(
-        file: UploadFile = File(..., description="Audio file (WAV, MP3, OGG, FLAC, etc.)"),
+        file: Annotated[
+            UploadFile, File(description="Audio file (WAV, MP3, OGG, FLAC, etc.)")
+        ],
         session_id: str = "file-upload",
         speaker_id: str = "uploader",
     ) -> list[TranscriptSegment]:
@@ -50,7 +54,7 @@ def build_router(engine: AsrEngine, settings: Settings) -> APIRouter:
             return []
 
         pcm = decode_audio_bytes(data, filename=filename)
-        from inclusaai_utils import new_id, now_ms
+        from inclusaai_utils import now_ms
 
         chunk = AudioChunk(
             session_id=session_id,

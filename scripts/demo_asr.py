@@ -126,6 +126,10 @@ def print_results(results: list[dict], label: str = "") -> None:
 
 
 def main() -> None:
+    # Windows consoles default to cp1252, which cannot print the emoji below.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     # --- health check ---
     print(f"Checking ASR service at {BASE_URL} ...")
     if not check_health():

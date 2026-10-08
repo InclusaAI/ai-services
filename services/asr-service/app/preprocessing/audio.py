@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import base64
 import io
-import struct
 import wave
 
 import numpy as np
@@ -131,6 +130,19 @@ def _resample_pcm(data: bytes, source_rate: int) -> bytes:
 
     audio = np.frombuffer(data, dtype=np.int16).astype(np.float32)
     audio = _resample(audio, source_rate, _TARGET_SAMPLE_RATE)
+    return _float_to_pcm16(audio)
+
+
+def resample_s16le(pcm: bytes, src_rate: int, dst_rate: int) -> bytes:
+    """Resample raw s16le PCM from ``src_rate`` to ``dst_rate`` (linear interp).
+
+    Public so the whisper backend can apply the same convention when called
+    directly with a non-16 kHz buffer (the decode path already resamples).
+    """
+    if src_rate == dst_rate:
+        return pcm
+    audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
+    audio = _resample(audio, src_rate, dst_rate)
     return _float_to_pcm16(audio)
 
 

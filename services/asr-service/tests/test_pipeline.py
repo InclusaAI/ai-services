@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from typing import Any
 
 from app.config import Settings
 from app.inference.engine import AsrEngine
@@ -56,3 +57,33 @@ async def test_handle_publishes_transcript(
 
     assert published, "expected a transcript to be published"
     assert published[0][0] == "ai.transcript.segment"
+
+
+async def test_handle_resamples_before_engine(settings: Settings) -> None:
+    """A 44.1 kHz chunk is resampled to the target rate by decode_audio, and the
+    engine is told that target rate — not the chunk's original one."""
+    pipeline = AsrPipeline(settings)
+    seen: dict[str, Any] = {}
+
+    class _Recorder:
+        def predict(self, payload: dict) -> list[dict]:  # noqa: ANN001
+            seen.update(payload)
+            return []
+
+    pipeline.engine._model = _Recorder()  # noqa: SLF001 — wiring a fake backend
+    pipeline.engine._stub = False  # noqa: SLF001
+
+    chunk = AudioChunk(
+        session_id="s1",
+        speaker_id="spk1",
+        sequence=0,
+        timestamp_ms=0,
+        encoding="pcm_s16le",
+        sample_rate=44100,
+        payload_b64=base64.b64encode(b"\x00\x00" * 4410).decode(),
+    )
+    await pipeline.handle("media.audio.chunk", chunk)
+
+    assert seen["sample_rate"] == 16000
+    # 4410 samples at 44.1 kHz -> 1600 samples at 16 kHz (2 bytes each).
+    assert len(seen["audio"]) == 1600 * 2

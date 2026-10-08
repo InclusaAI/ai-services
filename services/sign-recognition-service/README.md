@@ -22,12 +22,14 @@ truth — so the recognizer only ever emits labels the avatar can also produce.
 
 ```
 app/
-  config.py          # Settings: model, video_sample_fps, sign_language
+  config.py          # Settings: model, video_sample_fps, gesture_window_frames, sign_language
   preprocessing.py   # undo base64 transport -> encoded image bytes
   detection.py       # MediaPipe Holistic -> 51-pt skeleton Pose (guarded; degrades to a fake pose)
-  inference/engine.py# SignEngine: skeleton Pose -> closed-set label (+ fingerspelling); stub until a model is registered
+  inference/
+    engine.py        # SignEngine: skeleton Pose -> closed-set label (+ fingerspelling)
+    fingerspelling.py# rule-based ASL handshape classifier over the 51-pt skeleton (offline, model-free)
   postprocessing.py  # build the SignRecognitionResult contract payload
-  pipeline.py        # video.frame -> sign.recognition.result
+  pipeline.py        # video.frame -> sign.recognition.result (buffers per-session gesture windows)
 ```
 
 ### Representation & perception
@@ -46,7 +48,22 @@ degrades without faster-whisper), and the pipeline stays fully exercisable offli
 path, install `pose-format[mediapipe]` + `opencv-python-headless` into a `protobuf<5` environment and
 set `SIGN_RUN_MEDIAPIPE_TESTS=1`.
 
-Runs a deterministic **stub** engine when no model is registered, so the wiring is
-exercisable offline. See `services/asr-service` for the fuller reference (incl. the
-optional gRPC servicer pattern). Real recognition *content* (verified glosses, a learned
-model) stays gated on the ADR-0002 consultation.
+Runs **offline** when no model is registered, so the wiring is exercisable without
+MLflow/Kafka/GPU:
+
+- **Fingerspelling is real, not stubbed.** `inference/fingerspelling.py` classifies
+  the signer's dominant handshape against the ASL manual alphabet from landmark
+  geometry alone (per-finger curl + thumb placement) — a bounded, model-free
+  fallback for out-of-vocabulary content (ADR-0002). It statically covers
+  `a b c d f g i l r u v w y`; motion- and orientation-dependent letters fall
+  through to the closed-set phrase stub.
+- **Phrases are the deterministic stub** until a learned model is registered — a
+  placeholder reduction of the pose to a closed-set label (matched-pair symmetry
+  with the avatar's vocabulary), gated on the ADR-0002 consultation.
+- **Gestures, not frames.** The pipeline buffers per-session **gesture windows**
+  (`gesture_window_frames`, ~1s at 15fps) and majority-votes the per-frame labels,
+  so one noisy frame can't flip a result.
+
+See `services/asr-service` for the fuller reference (incl. the optional gRPC servicer
+pattern). Real recognition *content* (verified glosses, a learned model) stays gated
+on the ADR-0002 consultation.

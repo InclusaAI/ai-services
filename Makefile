@@ -19,7 +19,10 @@ bootstrap: sync-shared
 	@for s in $(SERVICES); do echo ">> uv sync services/$$s"; (cd services/$$s && uv sync); done
 
 sync-shared:
-	uv sync
+	# --all-packages installs the shared workspace members into the root env so
+	# `make test` (root pytest over shared/*/tests + tests/) and the E2E tests in
+	# tests/ can import inclusaai_* directly.
+	uv sync --all-packages
 
 gen-contracts:
 	uv run python scripts/gen_contracts.py

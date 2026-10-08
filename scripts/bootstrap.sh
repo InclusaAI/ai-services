@@ -16,8 +16,11 @@ SERVICES=(
   engagement-service
 )
 
+# --all-packages installs the shared workspace members into the root env so
+# root-level `pytest` (shared/*/tests + tests/) and the E2E tests can import
+# inclusaai_* directly.
 echo ">> uv sync (shared workspace + repo tooling)"
-uv sync
+uv sync --all-packages
 
 echo ">> generating contract stubs + schemas"
 uv run python scripts/gen_contracts.py

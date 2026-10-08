@@ -37,9 +37,12 @@ class AsrPipeline(BaseInferencePipeline):
     async def handle(self, event_key: str, model: BaseModel) -> None:
         if not isinstance(model, AudioChunk):
             return
+        # decode_audio already resampled to the engine's target rate — hand THAT
+        # rate to the engine, not the chunk's original one, or a 44.1k input would
+        # be labeled 44.1k and rejected/misread by the model backend.
         pcm = decode_audio(model)
         transcriptions = self.engine.transcribe(
-            pcm, sample_rate=model.sample_rate, base_ms=model.timestamp_ms
+            pcm, sample_rate=self.settings.target_sample_rate, base_ms=model.timestamp_ms
         )
         for transcription in transcriptions:
             segment = to_segment(model, transcription, self.language)

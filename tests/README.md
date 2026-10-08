@@ -17,5 +17,23 @@ These generally need the local dep stack (`make dev-up`) and multiple service en
 so they are **not** part of the default per-service `pytest` run and are not yet wired
 into CI. Add them here as the platform grows.
 
-> Scaffold status: placeholder. The runnable tests today are the per-service suites
-> under `services/*/tests/`.
+## What's here
+
+- `test_e2e_pipeline.py` — ASR end-to-end over the local broker: publishes a
+  `media.session.<id>.audio.chunk` and asserts the running asr-service publishes an
+  `ai.transcript.segment` back. Gated on `RUN_E2E_TESTS=1` (needs `make dev-up` +
+  the service running) so CI and offline dev stay green:
+
+  ```bash
+  make dev-up
+  cd services/asr-service && uv run uvicorn app.main:app --port 8080
+  # (another terminal, repo root)
+  RUN_E2E_TESTS=1 uv run pytest tests/test_e2e_pipeline.py -v
+  ```
+
+  The root env needs the shared workspace members installed to import them —
+  `make bootstrap` / `uv sync --all-packages` does that (plain `uv sync` does not
+  install members into a virtual root).
+
+> Scaffold status: one gated cross-service test; the always-on runnable suites are
+> the per-service tests under `services/*/tests/` plus each shared lib's own tests.

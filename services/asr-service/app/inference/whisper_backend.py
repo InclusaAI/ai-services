@@ -51,17 +51,18 @@ class WhisperBackend:
         """Transcribe one PCM buffer.
 
         ``payload`` = ``{"audio": <pcm_s16le bytes>, "sample_rate": int}``. Audio must be
-        mono 16-bit PCM at 16 kHz (the contract default); other rates are rejected here
-        rather than silently mis-transcribed (resampling is a follow-up). Returns segments
-        as ``{"text", "start", "end", "confidence"}`` with times in **seconds**.
+        mono 16-bit PCM; any sample rate is resampled to the 16 kHz whisper expects
+        (linear interpolation — adequate for dev; the production decode path resamples
+        with the same convention before the engine). Returns segments as
+        ``{"text", "start", "end", "confidence"}`` with times in **seconds**.
         """
         audio: bytes = payload["audio"]
         sample_rate = int(payload.get("sample_rate", TARGET_SAMPLE_RATE))
         if sample_rate != TARGET_SAMPLE_RATE:
-            raise ValueError(
-                f"WhisperBackend expects {TARGET_SAMPLE_RATE} Hz mono PCM, got "
-                f"{sample_rate} Hz (resampling is not implemented yet)."
-            )
+            from app.preprocessing.audio import resample_s16le
+
+            audio = resample_s16le(audio, sample_rate, TARGET_SAMPLE_RATE)
+            sample_rate = TARGET_SAMPLE_RATE
 
         samples = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
         segments, _info = self._model.transcribe(samples, language=self._language)

@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
+import base64
 import io
-import struct
 import wave
 
 import pytest
-from fastapi.testclient import TestClient
 from app.main import app
 from app.preprocessing.audio import (
     _float_to_pcm16,
     _resample,
     decode_audio,
     decode_audio_bytes,
+    resample_s16le,
 )
+from fastapi.testclient import TestClient
 from inclusaai_contracts.events import AudioChunk
-import base64
-
 
 # ---------------------------------------------------------------------------
 # WAV generation helper
@@ -95,7 +94,7 @@ def test_decode_audio_bytes_unknown_extension_raises() -> None:
 
 def test_decode_audio_bytes_no_extension_defaults_wav() -> None:
     # No extension → treated as WAV → will fail with bad data, not extension error
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, wave.Error)):
         decode_audio_bytes(b"not a wav", filename="audio")
 
 
@@ -131,6 +130,15 @@ def test_decode_audio_pcm_s16le_resamples() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_resample_s16le_public_helper() -> None:
+    # 3200 samples at 32 kHz -> 1600 samples at 16 kHz
+    raw = b"\x00\x00" * 3200
+    out = resample_s16le(raw, 32000, 16000)
+    assert len(out) // 2 == 1600
+    # identity is a passthrough
+    assert resample_s16le(raw, 16000, 16000) is raw
+
+
 def test_resample_identity() -> None:
     import numpy as np
     audio = np.array([1.0, 2.0, 3.0], dtype=np.float32)
@@ -150,7 +158,7 @@ def test_float_to_pcm16_clips() -> None:
     pcm = _float_to_pcm16(audio)
     samples = np.frombuffer(pcm, dtype=np.int16)
     assert samples[0] == 32767   # clipped to max
-    assert samples[1] == -32767  # clipped to min (int16 range: -32768..32767, but -1.0*32767 = -32767)
+    assert samples[1] == -32767  # clipped to min (int16: -32768..32767; -1.0*32767 = -32767)
     assert samples[2] == 16383   # 0.5 * 32767 ≈ 16383
 
 
