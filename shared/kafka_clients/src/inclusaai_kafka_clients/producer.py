@@ -65,7 +65,9 @@ class KafkaEventProducer:
                 if ca_cert:
                     # Handle escaped newlines in case they get flattened in env vars
                     ca_cert = ca_cert.replace("\\n", "\n")
-                    producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert)
+                    # Encode to bytes as required by aiokafka.helpers.create_ssl_context
+                    ca_cert_bytes = ca_cert.encode("utf-8")
+                    producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert_bytes)
 
         producer = AIOKafkaProducer(**producer_kwargs)
         try:
