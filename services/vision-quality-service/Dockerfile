@@ -21,4 +21,4 @@ WORKDIR /workspace/services/vision-quality-service
 RUN uv sync --no-dev
 
 EXPOSE 8080 50051
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["sh", "-c", "exec uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
