@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator
 
 from aiokafka import AIOKafkaConsumer
+from aiokafka.helpers import create_ssl_context
 from inclusaai_contracts import schema_registry
 from inclusaai_telemetry import EVENTS_CONSUMED, get_logger
 from pydantic import BaseModel
@@ -48,12 +50,31 @@ class KafkaEventConsumer:
         self._consumer: AIOKafkaConsumer | None = None
 
     async def start(self) -> None:
-        self._consumer = AIOKafkaConsumer(
-            bootstrap_servers=self._bootstrap,
-            group_id=self._group,
-            auto_offset_reset=self._auto_offset_reset,
-            enable_auto_commit=True,
-        )
+        # Build consumer kwargs with optional SASL/SSL support (e.g., for Aiven Kafka)
+        consumer_kwargs = {
+            "bootstrap_servers": self._bootstrap,
+            "group_id": self._group,
+            "auto_offset_reset": self._auto_offset_reset,
+            "enable_auto_commit": True,
+        }
+
+        # Check for SASL/SSL configuration
+        security_protocol = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").upper()
+        if security_protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
+            consumer_kwargs["security_protocol"] = security_protocol
+            consumer_kwargs["sasl_mechanism"] = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
+            consumer_kwargs["sasl_plain_username"] = os.getenv("KAFKA_SASL_USERNAME", "")
+            consumer_kwargs["sasl_plain_password"] = os.getenv("KAFKA_SASL_PASSWORD", "")
+
+            # Load CA certificate if provided (for SSL verification)
+            if security_protocol == "SASL_SSL":
+                ca_cert = os.getenv("KAFKA_SSL_CA")
+                if ca_cert:
+                    # Handle escaped newlines in case they get flattened in env vars
+                    ca_cert = ca_cert.replace("\\n", "\n")
+                    consumer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert)
+
+        self._consumer = AIOKafkaConsumer(**consumer_kwargs)
         if self._pattern:
             self._consumer.subscribe(pattern=self._pattern)
         else:
