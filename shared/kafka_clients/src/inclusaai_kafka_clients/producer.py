@@ -27,12 +27,23 @@ def _load_ca_cert_from_env(service_name: str) -> bytes | None:
     if not ca_cert:
         return None
 
+    # DEBUG: Log the raw cert to inspect for truncation or encoding issues
+    log.info(
+        "kafka.ssl_ca.debug",
+        service=service_name,
+        cert_length=len(ca_cert),
+        cert_start=ca_cert[:100] if ca_cert else "",
+        cert_end=ca_cert[-100:] if ca_cert else "",
+    )
+
     normalized = ca_cert.replace("\\n", "\n")
     if "-----BEGIN CERTIFICATE-----" not in normalized or "-----END CERTIFICATE-----" not in normalized:
         log.warning(
             "kafka.ssl_ca.invalid",
             service=service_name,
             reason="KAFKA_SSL_CA must contain PEM-encoded certificate data.",
+            has_begin=("-----BEGIN CERTIFICATE-----" in normalized),
+            has_end=("-----END CERTIFICATE-----" in normalized),
         )
         return None
 
