@@ -4,7 +4,7 @@ services:
     env: docker
     dockerfilePath: ./services/asr-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -12,7 +12,7 @@ services:
     env: docker
     dockerfilePath: ./services/sign-recognition-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -20,7 +20,7 @@ services:
     env: docker
     dockerfilePath: ./services/translation-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -28,7 +28,7 @@ services:
     env: docker
     dockerfilePath: ./services/tts-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -36,7 +36,7 @@ services:
     env: docker
     dockerfilePath: ./services/avatar-pose-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -44,7 +44,7 @@ services:
     env: docker
     dockerfilePath: ./services/vision-quality-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
 
   - type: web
@@ -52,5 +52,5 @@ services:
     env: docker
     dockerfilePath: ./services/engagement-service/Dockerfile
     dockerContext: .
-    plan: standard
+    plan: free
     healthCheckPath: /healthz
