@@ -11,9 +11,14 @@ FROM ${BASE_IMAGE}
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-ENV PYTHONUNBUFFERED=1     UV_LINK_MODE=copy     UV_COMPILE_BYTECODE=1
+ENV PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1
 
 WORKDIR /workspace
+
+# Workspace root, so shared libs' `workspace = true` sources resolve
+COPY pyproject.toml /workspace/
 COPY shared/ /workspace/shared/
 COPY services/tts-service/ /workspace/services/tts-service/
 
@@ -21,4 +26,4 @@ WORKDIR /workspace/services/tts-service
 RUN uv sync --no-dev
 
 EXPOSE 8080 50051
-CMD ["sh", "-c", "exec uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "exec uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
