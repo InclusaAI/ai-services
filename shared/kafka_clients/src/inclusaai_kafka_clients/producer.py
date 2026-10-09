@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import os
-import ssl
 from typing import Any
 
 from aiokafka import AIOKafkaProducer
+from aiokafka.helpers import create_ssl_context
 from inclusaai_telemetry import EVENTS_PUBLISHED, get_logger
 from pydantic import BaseModel
 
@@ -55,8 +55,7 @@ class KafkaEventProducer:
         security_protocol = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").upper()
         if security_protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
             producer_kwargs["security_protocol"] = security_protocol
-            sasl_mechanism = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
-            producer_kwargs["sasl_mechanism"] = sasl_mechanism
+            producer_kwargs["sasl_mechanism"] = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
             producer_kwargs["sasl_plain_username"] = os.getenv("KAFKA_SASL_USERNAME", "")
             producer_kwargs["sasl_plain_password"] = os.getenv("KAFKA_SASL_PASSWORD", "")
 
@@ -64,9 +63,9 @@ class KafkaEventProducer:
             if security_protocol == "SASL_SSL":
                 ca_cert = os.getenv("KAFKA_SSL_CA")
                 if ca_cert:
-                    ssl_ctx = ssl.create_default_context()
-                    ssl_ctx.load_verify_locations(cadata=ca_cert.encode())
-                    producer_kwargs["ssl_context"] = ssl_ctx
+                    # Handle escaped newlines in case they get flattened in env vars
+                    ca_cert = ca_cert.replace("\\n", "\n")
+                    producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert)
 
         producer = AIOKafkaProducer(**producer_kwargs)
         try:
