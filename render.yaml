@@ -4,7 +4,6 @@ services:
     env: docker
     dockerfilePath: ./services/asr-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -13,7 +12,6 @@ services:
     env: docker
     dockerfilePath: ./services/sign-recognition-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -22,7 +20,6 @@ services:
     env: docker
     dockerfilePath: ./services/translation-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -31,7 +28,6 @@ services:
     env: docker
     dockerfilePath: ./services/tts-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -40,7 +36,6 @@ services:
     env: docker
     dockerfilePath: ./services/avatar-pose-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -49,7 +44,6 @@ services:
     env: docker
     dockerfilePath: ./services/vision-quality-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
 
@@ -58,6 +52,5 @@ services:
     env: docker
     dockerfilePath: ./services/engagement-service/Dockerfile
     dockerContext: .
-    port: 8080
     plan: standard
     healthCheckPath: /healthz
