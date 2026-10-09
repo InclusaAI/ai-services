@@ -16,6 +16,37 @@ from inclusaai_kafka_clients.topics import topic_for_event_key
 log = get_logger(__name__)
 
 
+def _load_ca_cert_from_env(service_name: str) -> bytes | None:
+    """Return a PEM certificate bytes blob when the env var is present and valid.
+
+    If the value is malformed or empty, log a warning instead of crashing the
+    entire service. The broker is treated as unavailable in that case and the
+    application keeps booting in offline mode.
+    """
+    ca_cert = os.getenv("KAFKA_SSL_CA", "").strip()
+    if not ca_cert:
+        return None
+
+    normalized = ca_cert.replace("\\n", "\n")
+    if "-----BEGIN CERTIFICATE-----" not in normalized or "-----END CERTIFICATE-----" not in normalized:
+        log.warning(
+            "kafka.ssl_ca.invalid",
+            service=service_name,
+            reason="KAFKA_SSL_CA must contain PEM-encoded certificate data.",
+        )
+        return None
+
+    try:
+        return normalized.encode("utf-8")
+    except Exception as exc:  # pragma: no cover - defensive guard for odd env input
+        log.warning(
+            "kafka.ssl_ca.invalid",
+            service=service_name,
+            reason=str(exc),
+        )
+        return None
+
+
 class KafkaEventProducer:
     """Publishes pydantic event models as JSON to their topic.
 
@@ -61,13 +92,18 @@ class KafkaEventProducer:
 
             # Load CA certificate if provided (for SSL verification)
             if security_protocol == "SASL_SSL":
-                ca_cert = os.getenv("KAFKA_SSL_CA")
-                if ca_cert:
-                    # Handle escaped newlines in case they get flattened in env vars
-                    ca_cert = ca_cert.replace("\\n", "\n")
-                    # Encode to bytes as required by aiokafka.helpers.create_ssl_context
-                    ca_cert_bytes = ca_cert.encode("utf-8")
-                    producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert_bytes)
+                ca_cert_bytes = _load_ca_cert_from_env(self._service)
+                if ca_cert_bytes is not None:
+                    try:
+                        producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert_bytes)
+                    except Exception as exc:  # pragma: no cover - defensive guard; treat as offline
+                        log.warning(
+                            "producer.offline",
+                            service=self._service,
+                            bootstrap=self._bootstrap,
+                            error=f"invalid kafka ssl ca: {exc}",
+                        )
+                        return
 
         producer = AIOKafkaProducer(**producer_kwargs)
         try:
