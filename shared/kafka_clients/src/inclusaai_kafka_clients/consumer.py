@@ -10,6 +10,7 @@ from inclusaai_contracts import schema_registry
 from inclusaai_telemetry import EVENTS_CONSUMED, get_logger
 from pydantic import BaseModel
 
+from inclusaai_kafka_clients.security import security_kwargs
 from inclusaai_kafka_clients.topics import topic_to_event_key
 
 log = get_logger(__name__)
@@ -53,6 +54,7 @@ class KafkaEventConsumer:
             group_id=self._group,
             auto_offset_reset=self._auto_offset_reset,
             enable_auto_commit=True,
+            **security_kwargs(),
         )
         if self._pattern:
             self._consumer.subscribe(pattern=self._pattern)

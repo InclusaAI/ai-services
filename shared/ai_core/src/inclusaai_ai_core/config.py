@@ -40,3 +40,13 @@ class BaseServiceSettings(BaseSettings):
 
     # usage aggregation (ADR-0009)
     usage_aggregate_interval_seconds: int = 60
+
+    # production honesty gates (see ai_core/pipeline.py::readiness_problems).
+    # REQUIRE_KAFKA: the broker must be reachable and the consume loop running,
+    # or /readyz returns 503 (offline-stub stays a dev-only luxury).
+    # REQUIRE_MODEL: when a real model is configured via MODEL_NAME, it must have
+    # actually loaded; falling back to the stub flips readiness off. Leave
+    # REQUIRE_MODEL unset for services whose default path is the stub (asr in
+    # dev, avatar-pose vocabulary mode, vision-quality heuristics).
+    require_kafka: bool = False
+    require_model: bool = False

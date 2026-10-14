@@ -9,6 +9,7 @@ from aiokafka import AIOKafkaProducer
 from inclusaai_telemetry import EVENTS_PUBLISHED, get_logger
 from pydantic import BaseModel
 
+from inclusaai_kafka_clients.security import security_kwargs
 from inclusaai_kafka_clients.topics import topic_for_event_key
 
 log = get_logger(__name__)
@@ -43,7 +44,7 @@ class KafkaEventProducer:
                 "producer.offline", service=self._service, reason="no kafka broker configured"
             )
             return
-        producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap)
+        producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap, **security_kwargs())
         try:
             await producer.start()
         except Exception as exc:  # noqa: BLE001 — broker unreachable must not block boot

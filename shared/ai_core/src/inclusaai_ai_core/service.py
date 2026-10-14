@@ -9,7 +9,7 @@ Logging and tracing are configured here so a service's ``main.py`` stays a few l
 from __future__ import annotations
 
 from collections.abc import Iterable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Protocol, runtime_checkable
 
 from fastapi import APIRouter, FastAPI
@@ -60,15 +60,39 @@ def create_app(
     async def lifespan(_app: FastAPI):
         log.info("service.starting", service=settings.service_name, env=settings.env)
         if pipeline is not None:
-            await pipeline.start()
-        ready.set_ready(True)
-        log.info("service.ready", service=settings.service_name)
+            try:
+                await pipeline.start()
+            except BaseException:
+                # A mid-start failure must not leak the half-started producer/
+                # consumers/usage task: run the (defensive) stop path, then re-raise
+                # so the process exits non-zero and the orchestrator retries.
+                log.exception("pipeline.start_failed", service=settings.service_name)
+                with suppress(Exception):
+                    await pipeline.stop()
+                raise
+            # Honest readiness: REQUIRE_KAFKA / REQUIRE_MODEL failures leave the
+            # HTTP surface alive but /readyz at 503, so init traffic stops tracking
+            # an instance that would otherwise produce nothing.
+            problems = pipeline.readiness_problems()  # type: ignore[attr-defined]
+            if problems:
+                ready.set_ready(False)
+                log.error(
+                    "service.not_ready",
+                    service=settings.service_name,
+                    problems=problems,
+                )
+            else:
+                ready.set_ready(True)
+            log.info("service.ready", service=settings.service_name)
+        else:
+            ready.set_ready(True)
         try:
             yield
         finally:
             ready.set_ready(False)
             if pipeline is not None:
-                await pipeline.stop()
+                with suppress(Exception):
+                    await pipeline.stop()
             log.info("service.stopped", service=settings.service_name)
 
     app = FastAPI(title=settings.service_name, version="0.0.0", lifespan=lifespan)
@@ -77,7 +101,7 @@ def create_app(
     app.include_router(health_router(ready))
     app.include_router(_metrics_router())
 
-    @app.get("/", include_in_schema=False)
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     def root() -> dict[str, str]:
         return {"service": settings.service_name, "env": settings.env}
 

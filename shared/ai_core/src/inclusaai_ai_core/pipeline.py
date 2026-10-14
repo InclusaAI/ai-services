@@ -36,6 +36,10 @@ class BaseInferencePipeline:
     output_channel: AccessibilityChannel | None = None
     #: The usage unit counted for ai.usage.aggregate (ADR-0009).
     usage_unit: str = "inference"
+    #: True once the service's real model (if one is required) has loaded. Services
+    #: set False in ``on_start`` when a configured model failed to load; leave True
+    #: for stub/vocabulary paths. ``readiness_problems`` turns this into /readyz.
+    model_ready: bool = True
 
     def __init__(
         self,
@@ -107,8 +111,10 @@ class BaseInferencePipeline:
         for task in self._tasks:
             try:
                 await task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, GeneratorExit):
                 pass
+            except Exception as exc:  # noqa: BLE001 — a crashed loop must not abort the other shutdown steps
+                log.error("pipeline.stop_task_failed", error=str(exc))
         self._tasks.clear()
         await self.usage.stop()
         await self.on_stop()
@@ -138,6 +144,22 @@ class BaseInferencePipeline:
         if self.output_channel is None:
             return True
         return self.preferences.should_generate(session_id, self.output_channel)
+
+    def readiness_problems(self) -> list[str]:
+        """Return readiness problems per the REQUIRE_* honesty gates.
+
+        Empty list = this instance is actually doing (or able to do) its job.
+        Non-empty = /readyz must be 503: Render (or K8s) stops routing and the
+        offline-stub luxury doesn't masquerade as a serving deployment.
+        """
+        problems: list[str] = []
+        if self.settings.require_kafka and not (
+            self.producer.online and self._input_consumer is not None
+        ):
+            problems.append("kafka-broker-unreachable")
+        if self.settings.require_model and not self.model_ready:
+            problems.append("model-not-loaded")
+        return problems
 
     async def publish(self, event_key: str, payload: BaseModel, *, key: str | None = None) -> None:
         await self.producer.publish(event_key, payload, key=key)
