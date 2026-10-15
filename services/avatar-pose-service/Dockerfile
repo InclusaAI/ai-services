@@ -14,6 +14,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 ENV PYTHONUNBUFFERED=1     UV_LINK_MODE=copy     UV_COMPILE_BYTECODE=1
 
 WORKDIR /workspace
+# Workspace root, so shared libs' `workspace = true` sources resolve.
+COPY pyproject.toml /workspace/
 COPY shared/ /workspace/shared/
 COPY services/avatar-pose-service/ /workspace/services/avatar-pose-service/
 
