@@ -30,7 +30,36 @@ app/
     fingerspelling.py# rule-based ASL handshape classifier over the 51-pt skeleton (offline, model-free)
   postprocessing.py  # build the SignRecognitionResult contract payload
   pipeline.py        # video.frame -> sign.recognition.result (buffers per-session gesture windows)
+  api/rest.py        # debug REST router: POST /v1/recognize, GET /v1/labels
 ```
+
+### Debug REST API
+
+Health/readiness/metrics come from `inclusaai_ai_core`; this adds a synchronous,
+broker-free view of the engine:
+
+| | Route | Purpose |
+|---|---|---|
+| `POST` | `/v1/recognize` | One `VideoFrame` (base64 JPEG) -> `[SignRecognitionResult]` |
+| `GET` | `/v1/labels` | The closed label set + fingerspelling alphabet + window config |
+
+This is the **single-frame** path: the Kafka pipeline buffers a gesture window and
+majority-votes before publishing, so a noisy frame here can flip a label the pipeline
+would have smoothed out. Use it for smoke tests, not for parity checking.
+
+### Preference gating
+
+Recognition feeds **two** channels — `CAPTIONS` (gloss -> captions) and `TRANSLATION`
+(gloss -> translation -> tts) — so it is gated on "is *any* of these needed"
+(`output_channels`), not on a single channel. A single-channel check would switch the
+work off as soon as either channel was disabled, dropping output somebody still
+needed. Gating is fail-open: until preferences for a session arrive, recognition runs.
+
+Per-session gesture windows are held in an LRU-bounded cache
+(`max_gesture_sessions`, default 256). The broker fans every session's frames to every
+replica, so without a bound a session that stops mid-window would pin its partial
+buffer for the process lifetime. A gated-off session's partial window is dropped rather
+than resumed.
 
 ### Representation & perception
 

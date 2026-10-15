@@ -22,7 +22,11 @@ from app.pipeline import SignPipeline
 from app.postprocessing import to_result
 from app.preprocessing import decode_frame
 from inclusaai_contracts import schema_registry
-from inclusaai_contracts.events import VideoFrame
+from inclusaai_contracts.events import (
+    AccessibilityChannel,
+    AccessibilityPreferenceUpdated,
+    VideoFrame,
+)
 from inclusaai_pose_tools import frame_count, pose_for_code, pose_to_keypoints
 from inclusaai_sign_vocab import FINGERSPELL_ALPHABET, NUM_KEYPOINTS, phrase_ids
 
@@ -190,6 +194,165 @@ async def test_handle_separates_sessions(
     await pipeline.handle("media.video.frame", video_frame)  # s1: 2/2 -> publish
     assert len(published) == 1
     assert published[0][1].session_id == "s1"
+
+
+# ------------------------------------------------------------------ preference gate
+def _prefs(pipeline: SignPipeline, session_id: str, participant: str, *channels: str) -> None:
+    pipeline.preferences.update(
+        AccessibilityPreferenceUpdated(
+            session_id=session_id,
+            participant_id=participant,
+            channels=[AccessibilityChannel(c) for c in channels],
+            updated_at_ms=0,
+        )
+    )
+
+
+def test_pipeline_is_gated_on_captions_and_translation() -> None:
+    """Recognition feeds BOTH channels, so the gate must be "any of", not "one of"."""
+    assert SignPipeline.output_channels == (
+        AccessibilityChannel.CAPTIONS,
+        AccessibilityChannel.TRANSLATION,
+    )
+
+
+async def test_handle_skips_a_session_nobody_is_reading(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """Nobody needs captions or translation -> skip the work entirely (the TODO(gating))."""
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    settings.gesture_window_frames = 2
+    published: list[tuple[str, Any]] = []
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        published.append((event_key, payload))
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+    _prefs(pipeline, "s1", "p1", "avatar")  # a channel recognition does not serve
+    await pipeline.handle("media.video.frame", video_frame)
+    await pipeline.handle("media.video.frame", video_frame)
+    assert not published
+    assert not pipeline._windows  # gated before any pose was even extracted
+
+
+async def test_handle_runs_when_either_channel_is_needed(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """A single-channel check would gate this off and drop needed output."""
+    settings.gesture_window_frames = 2
+    for channel in ("captions", "translation"):
+        assert await _window_publishes(settings, video_frame, monkeypatch, channel) == 1
+
+
+async def _window_publishes(
+    settings: Settings,
+    video_frame: VideoFrame,
+    monkeypatch: Any,
+    channel: str | None,
+) -> int:
+    """Feed one full gesture window for a session with ``channel`` enabled.
+
+    ``channel=None`` means no preference data at all (the fail-open path). Returns how
+    many results were published.
+    """
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    published: list[tuple[str, Any]] = []
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        published.append((event_key, payload))
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+    if channel is not None:
+        _prefs(pipeline, "s1", "p1", channel)
+    await pipeline.handle("media.video.frame", video_frame)
+    await pipeline.handle("media.video.frame", video_frame)
+    return len(published)
+
+
+async def test_handle_fails_open_before_preferences_arrive(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """No preference data yet -> generate, so the propagation race never drops output."""
+    settings.gesture_window_frames = 2
+    assert await _window_publishes(settings, video_frame, monkeypatch, None) == 1
+
+
+async def test_gating_drops_a_partial_window(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """A session gated off mid-window must not resume on stale poses when re-enabled."""
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    settings.gesture_window_frames = 3
+    published: list[tuple[str, Any]] = []
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        published.append((event_key, payload))
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+    await pipeline.handle("media.video.frame", video_frame)  # 1/3 buffered
+    assert "s1" in pipeline._windows
+
+    _prefs(pipeline, "s1", "p1", "avatar")  # nobody reading -> gate off
+    await pipeline.handle("media.video.frame", video_frame)
+    assert "s1" not in pipeline._windows, "partial window must be dropped when gated off"
+
+    # re-enabled: a full fresh window is needed again, so 2 frames must not publish.
+    pipeline.preferences.remove_participant("s1", "p1")
+    await pipeline.handle("media.video.frame", video_frame)
+    await pipeline.handle("media.video.frame", video_frame)
+    assert not published, "must re-buffer a whole window, not resume the stale one"
+
+
+# ----------------------------------------------------------------- window eviction
+async def test_window_cache_is_bounded(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """Every session the broker fans out is buffered; the cache must not grow forever."""
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    settings.gesture_window_frames = 10  # never fills -> every session stays resident
+    settings.max_gesture_sessions = 3
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        return None
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+
+    for i in range(10):
+        frame = video_frame.model_copy(update={"session_id": f"s{i}"})
+        await pipeline.handle("media.video.frame", frame)
+
+    assert len(pipeline._windows) == settings.max_gesture_sessions
+    # least-recently-seen evicted: the newest sessions survive, the oldest do not.
+    assert "s9" in pipeline._windows
+    assert "s0" not in pipeline._windows
+
+
+async def test_active_window_is_not_evicted_under_pressure(
+    settings: Settings, video_frame: VideoFrame, monkeypatch
+) -> None:
+    """A session still being framed must survive the churn of other sessions."""
+    pipeline = SignPipeline(settings)
+    pipeline.engine.load()
+    settings.gesture_window_frames = 1000
+    settings.max_gesture_sessions = 2
+
+    async def fake_publish(event_key, payload, *, key=None):  # noqa: ANN001, ANN202
+        return None
+
+    monkeypatch.setattr(pipeline, "publish", fake_publish)
+    hot = video_frame.model_copy(update={"session_id": "hot"})
+    for i in range(10):
+        # interleave: "hot" is the most recently seen session every single round.
+        await pipeline.handle("media.video.frame", hot)
+        await pipeline.handle(
+            "media.video.frame", video_frame.model_copy(update={"session_id": f"cold{i}"})
+        )
+    assert "hot" in pipeline._windows
+    assert len(pipeline._windows) == settings.max_gesture_sessions
 
 
 @pytest.mark.skipif(

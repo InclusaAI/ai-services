@@ -18,6 +18,11 @@ class Settings(BaseServiceSettings):
     # votes over a window instead of emitting per-frame, so one noisy frame can't flip
     # a result.
     gesture_window_frames: int = 15
+    # Upper bound on sessions buffered at once. The broker fans out every session's
+    # frames to every replica, so a session that stops mid-window would otherwise pin
+    # its partial buffer for the process lifetime; least-recently-seen windows are
+    # evicted past this count.
+    max_gesture_sessions: int = 256
     # ASL only for MVP; the recognized vocabulary is the SAME closed set the avatar
     # generates from (symmetric vocabulary, ADR-0002).
     sign_language: str = "ASL"

@@ -34,6 +34,11 @@ class BaseInferencePipeline:
 
     #: The accessibility channel this service's output serves; None = always generate.
     output_channel: AccessibilityChannel | None = None
+    #: For services whose output feeds *several* channels at once (sign recognition
+    #: feeds both CAPTIONS and TRANSLATION): gate on "is any of these needed" instead
+    #: of the single-channel check, which would gate the work off as soon as any one
+    #: channel was off. Takes precedence over ``output_channel`` when set.
+    output_channels: tuple[AccessibilityChannel, ...] | None = None
     #: The usage unit counted for ai.usage.aggregate (ADR-0009).
     usage_unit: str = "inference"
     #: True once the service's real model (if one is required) has loaded. Services
@@ -141,6 +146,8 @@ class BaseInferencePipeline:
     # ---------------------------------------------------------- helpers for subclasses
     def should_generate(self, session_id: str) -> bool:
         """Preference gate: whether to spend GPU producing this service's output."""
+        if self.output_channels:
+            return self.preferences.should_generate_any(session_id, self.output_channels)
         if self.output_channel is None:
             return True
         return self.preferences.should_generate(session_id, self.output_channel)

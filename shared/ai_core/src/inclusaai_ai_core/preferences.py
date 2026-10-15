@@ -8,6 +8,8 @@ from v1, not bolted on later.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from inclusaai_contracts.events import AccessibilityChannel, AccessibilityPreferenceUpdated
 
 
@@ -49,3 +51,21 @@ class PreferenceCache:
         if session_id not in self._by_session:
             return True
         return channel in self.channels_needed(session_id)
+
+    def should_generate_any(
+        self, session_id: str, channels: Iterable[AccessibilityChannel]
+    ) -> bool:
+        """Whether *any* of ``channels`` is needed by someone in ``session_id``.
+
+        For a service whose output feeds several channels at once — sign recognition
+        feeds both ``CAPTIONS`` and ``TRANSLATION``, so a single-channel check would
+        gate it off as soon as either one was off. Skip the work only when we
+        positively know nobody needs any of them.
+
+        Fail-open on the same terms as :meth:`should_generate`: no preference data for
+        the session yet means generate (we don't want to drop needed output during the
+        race before preferences propagate).
+        """
+        if session_id not in self._by_session:
+            return True
+        return not self.channels_needed(session_id).isdisjoint(channels)
