@@ -101,3 +101,26 @@ def test_vocabulary_endpoint_reports_the_closed_set(settings: Settings) -> None:
     assert body["phrase_count"] == len(phrase_ids())
     assert [entry["id"] for entry in body["phrases"]] == list(phrase_ids())
     assert body["fingerspelling"] == list(FINGERSPELL_ALPHABET)
+
+
+def test_documented_example_request_actually_works(settings: Settings) -> None:
+    """The example in the OpenAPI schema must be a working request.
+
+    Guards against the docs drifting into something that only *looks* like a valid
+    call: "Try it out" in /docs sends exactly this body.
+    """
+    _, app = _app(settings)
+    content = app.openapi()["paths"]["/v1/pose"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]
+    # The docs must actually carry an example, or "Try it out" sends an empty stub.
+    assert "examples" in content, "OpenAPI request body has no example to prefill"
+    example = content["examples"][0]
+    assert example["text"], "example must carry text to sign"
+    with TestClient(app) as client:
+        response = client.post("/v1/pose", json=example)
+    assert response.status_code == 200
+    frames = response.json()
+    assert frames and frames[0]["phrase_id"] == "hello"
+    assert frames[0]["session_id"] == example["session_id"]
+    assert frames[0]["timestamp_ms"] == example["start_ms"]

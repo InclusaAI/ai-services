@@ -36,12 +36,42 @@ app/
 ### Debug REST API
 
 Health/readiness/metrics come from `inclusaai_ai_core`; this adds a synchronous,
-broker-free view of the engine:
+broker-free view of the engine. Interactive docs are at `/docs`, and every request
+body is **pre-filled with a working example** so "Try it out" just works.
 
 | | Route | Purpose |
 |---|---|---|
 | `POST` | `/v1/recognize` | One `VideoFrame` (base64 JPEG) -> `[SignRecognitionResult]` |
 | `GET` | `/v1/labels` | The closed label set + fingerspelling alphabet + window config |
+
+Try it with curl (the payload is a real 1x1 JPEG):
+
+```bash
+curl -sS -X POST http://localhost:8080/v1/recognize \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id":"demo","presenter_id":"p1","sequence":0,"timestamp_ms":0,
+       "width":1,"height":1,"fps":15,
+       "payload_b64":"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q=="}'
+# -> [{"session_id":"demo-session","signer_id":"presenter-1","segment_id":"sign_...",
+#      "label":"number_10","gloss":"TEN","is_fingerspelling":false,
+#      "start_ms":0,"end_ms":0,"confidence":null,"sign_language":"ASL"}]
+```
+
+(`label` is a **placeholder** — with MediaPipe uninstalled, extraction degrades to a
+deterministic fake pose, so the label is arbitrary. The `sign_<random>` segment id is
+generated per call. This is the plumbing under test, not recognition quality.)
+
+```bash
+curl -sS http://localhost:8080/v1/labels | jq '{sign_language, phrases: (.phrases|length), fingerspelling}'
+# {"sign_language":"ASL","phrases":56,"fingerspelling":["a","b","c", ...]}  (26 letters)
+```
+
+**Status codes** — bad input is always a 4xx, never a 500:
+
+| Code | Meaning |
+|---|---|
+| `200` | Zero or one result. `[]` means nothing to recognize (empty payload -> no pose). |
+| `422` | Missing/invalid fields, **or** `payload_b64` is not valid base64 (the message says so). |
 
 This is the **single-frame** path: the Kafka pipeline buffers a gesture window and
 majority-votes before publishing, so a noisy frame here can flip a label the pipeline

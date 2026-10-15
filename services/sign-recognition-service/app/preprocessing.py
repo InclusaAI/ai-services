@@ -15,5 +15,14 @@ from inclusaai_contracts.events import VideoFrame
 
 
 def decode_frame(frame: VideoFrame) -> bytes:
-    """Undo the base64 transport, returning the raw encoded image bytes."""
-    return base64.b64decode(frame.payload_b64)
+    """Undo the base64 transport, returning the raw encoded image bytes.
+
+    Raises ``ValueError`` (``binascii.Error`` subclasses it) on malformed base64
+    rather than letting it escape as a 500 — a corrupt payload is bad client
+    input, and the caller decides how to surface it (the REST layer returns 422).
+    """
+    try:
+        return base64.b64decode(frame.payload_b64)
+    # binascii.Error ("Incorrect padding", invalid length) subclasses ValueError.
+    except ValueError as exc:
+        raise ValueError(f"payload_b64 is not valid base64: {exc}") from exc

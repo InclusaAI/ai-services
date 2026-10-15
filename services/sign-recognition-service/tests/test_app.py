@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import base64
 
+import pytest
 from app.api.rest import build_router
 from app.config import Settings
 from app.pipeline import SignPipeline
+from app.preprocessing import decode_frame
 from fastapi.testclient import TestClient
 from inclusaai_ai_core import create_app
 from inclusaai_contracts.events import VideoFrame
@@ -103,6 +105,71 @@ def test_recognize_endpoint_returns_nothing_for_an_empty_frame(settings: Setting
         response = client.post("/v1/recognize", json=frame.model_dump())
     assert response.status_code == 200
     assert response.json() == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["!!not-base64!!", "abc", "a", "abcde"],
+    ids=["invalid-chars", "bad-padding", "single-char", "bad-length"],
+)
+def test_malformed_base64_is_422_not_500(settings: Settings, payload: str) -> None:
+    """Bad client input must be a 4xx.
+
+    ``base64.b64decode`` raises ``binascii.Error`` (a ``ValueError``) on malformed
+    input; uncaught, that escaped as a 500 and burned an error-budget/metric on what
+    is purely a caller mistake.
+    """
+    _, app = _app(settings)
+    frame = VideoFrame(
+        session_id="s1",
+        presenter_id="signer1",
+        sequence=0,
+        timestamp_ms=1000,
+        width=640,
+        height=480,
+        payload_b64=payload,
+    )
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post("/v1/recognize", json=frame.model_dump())
+    assert response.status_code == 422
+    assert "base64" in response.json()["detail"]
+
+
+def test_documented_example_request_actually_works(settings: Settings) -> None:
+    """The example in the OpenAPI schema must be a working request.
+
+    Guards against the docs drifting into something that only *looks* like a valid
+    call: "Try it out" in /docs sends exactly this body.
+    """
+    _, app = _app(settings)
+    content = app.openapi()["paths"]["/v1/recognize"]["post"]["requestBody"]["content"][
+        "application/json"
+    ]
+    # The docs must actually carry an example, or "Try it out" sends an empty stub.
+    assert "examples" in content, "OpenAPI request body has no example to prefill"
+    example = content["examples"][0]
+    assert example["payload_b64"], "example must carry a payload"
+    with TestClient(app) as client:
+        response = client.post("/v1/recognize", json=example)
+    assert response.status_code == 200
+    body = response.json()
+    assert body and body[0]["session_id"] == example["session_id"]
+    assert body[0]["label"] in set(phrase_ids()) | set(FINGERSPELL_ALPHABET)
+
+
+def test_decode_frame_rejects_malformed_base64() -> None:
+    """The decode helper raises a clean ValueError rather than binascii.Error."""
+    frame = VideoFrame(
+        session_id="s1",
+        presenter_id="p1",
+        sequence=0,
+        timestamp_ms=0,
+        width=1,
+        height=1,
+        payload_b64="!!not-base64!!",
+    )
+    with pytest.raises(ValueError, match="base64"):
+        decode_frame(frame)
 
 
 def test_labels_endpoint_reports_the_closed_set(settings: Settings) -> None:

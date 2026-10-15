@@ -42,12 +42,36 @@ change rather than guessed at here.
 ## Debug REST API
 
 Health/readiness/metrics come from `inclusaai_ai_core`; this adds a synchronous,
-broker-free view of the generator:
+broker-free view of the generator. Interactive docs are at `/docs`, and the request
+body is **pre-filled with a working example** so "Try it out" just works.
 
 | | Route | Purpose |
 |---|---|---|
 | `POST` | `/v1/pose` | `{"text": ..., "session_id": ..., "start_ms": ...}` -> `[AvatarPoseFrame]` |
 | `GET` | `/v1/vocabulary` | The closed phrase set + fingerspelling alphabet |
+
+```bash
+curl -sS -X POST http://localhost:8080/v1/pose \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"hello there","session_id":"demo","start_ms":0}'
+# -> [{"session_id":"demo","phrase_id":"hello","frame_index":0,
+#      "timestamp_ms":0,"fps":30,
+#      "keypoints":[{"x":0.379,"y":0.613,"z":0.052,"visibility":1.0}, ...51 more]}, ...8 frames]
+```
+
+```bash
+curl -sS http://localhost:8080/v1/vocabulary | jq '{phrase_count, first: .phrases[0]}'
+# {"phrase_count":56,"first":{"id":"hello","gloss":"HELLO","category":"greeting"}}
+```
+
+Keypoint coordinates are a deterministic **placeholder** animation (stable per phrase
+id, see `app/vocabulary.py`) — realistic in shape, not real motion capture.
+
+**Status codes** — `200` returns the frame sequence (`phrase_id` null when the text was
+out-of-vocabulary and got fingerspelled); `422` if the body is missing `text`.
+
+Out-of-vocabulary and empty input still return frames (fingerspelled / neutral
+resting), so you always get something inspectable back.
 
 The pose sequence produced here is identical to the pipeline's; only the driver differs.
 
