@@ -68,7 +68,11 @@ def build_router(engine: SignEngine, settings: Settings) -> APIRouter:
         frame: Annotated[
             VideoFrame,
             Body(
-                openapi_examples=[_RECOGNIZE_EXAMPLE],
+                # A dict, not a list: OpenAPI requires `examples` to be a MAP
+                # ({"name": {...}}). FastAPI passes a list straight through, and
+                # Swagger UI silently ignores the invalid array form and falls back
+                # to the schema — which is why a list "shows no example".
+                openapi_examples={"recognizeFrame": _RECOGNIZE_EXAMPLE},
                 description=(
                     "One video frame. `payload_b64` is the base64-encoded image "
                     "(JPEG/PNG); the example above is a real 1x1 JPEG."

@@ -147,7 +147,15 @@ def test_documented_example_request_actually_works(settings: Settings) -> None:
     ]
     # The docs must actually carry an example, or "Try it out" sends an empty stub.
     assert "examples" in content, "OpenAPI request body has no example to prefill"
-    example = content["examples"][0]
+    examples = content["examples"]
+    # OpenAPI requires `examples` to be a MAP. FastAPI emits a list if given one, and
+    # Swagger UI then ignores it and shows the bare schema instead — the exact bug this
+    # assertion was added for.
+    assert isinstance(examples, dict), (
+        f"OpenAPI `examples` must be a map (got {type(examples).__name__}); a list is "
+        "invalid OpenAPI and Swagger UI silently falls back to the schema"
+    )
+    example = next(iter(examples.values()))
     assert example["payload_b64"], "example must carry a payload"
     with TestClient(app) as client:
         response = client.post("/v1/recognize", json=example)

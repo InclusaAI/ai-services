@@ -66,7 +66,13 @@ def build_router(engine: PoseEngine, settings: Settings) -> APIRouter:
         summary="Generate the pose frame sequence for some text",
     )
     def pose(
-        request: Annotated[PoseRequest, Body(openapi_examples=[_POSE_EXAMPLE])],
+        request: Annotated[
+            PoseRequest,
+            # A dict, not a list: OpenAPI requires `examples` to be a MAP. A list is
+            # passed through as an invalid array and Swagger UI falls back to the
+            # schema, so no example renders.
+            Body(openapi_examples={"signText": _POSE_EXAMPLE}),
+        ],
     ) -> list[AvatarPoseFrame]:
         """In-vocabulary text returns the phrase's frames with its ``phrase_id`` set;
         out-of-vocabulary text is fingerspelled (``phrase_id`` null); empty text
