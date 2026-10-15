@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body
+from fastapi.openapi.models import Example
 from inclusaai_contracts.events import AvatarPoseFrame
 from inclusaai_sign_vocab import FINGERSPELL_ALPHABET, PHRASES, phrase_ids
 from inclusaai_utils import now_ms
@@ -45,6 +46,11 @@ _POSE_EXAMPLE: dict[str, object] = {
     "start_ms": 0,
 }
 
+_POSE_EXAMPLE_OPENAPI = Example(
+    value=_POSE_EXAMPLE,
+    summary="Sign text from transcript or translation",
+)
+
 _POSE_RESPONSES: dict[int | str, dict[str, object]] = {
     200: {
         "description": (
@@ -71,7 +77,7 @@ def build_router(engine: PoseEngine, settings: Settings) -> APIRouter:
             # A dict, not a list: OpenAPI requires `examples` to be a MAP. A list is
             # passed through as an invalid array and Swagger UI falls back to the
             # schema, so no example renders.
-            Body(openapi_examples={"signText": _POSE_EXAMPLE}),
+            Body(openapi_examples={"signText": _POSE_EXAMPLE_OPENAPI}),
         ],
     ) -> list[AvatarPoseFrame]:
         """In-vocabulary text returns the phrase's frames with its ``phrase_id`` set;

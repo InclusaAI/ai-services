@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
+from fastapi.openapi.models import Example
 from inclusaai_contracts.events import SignRecognitionResult, VideoFrame
 from inclusaai_sign_vocab import FINGERSPELL_ALPHABET, phrase_ids
 
@@ -24,7 +25,7 @@ from app.inference.engine import SignEngine
 from app.postprocessing import to_result
 from app.preprocessing import decode_frame
 
-#: A real, decodable 1x1 JPEG (valid SOI/EOI markers) so the example request is
+#: A tiny, real JPEG (1x1 solid grey) so the example request is
 #: genuinely well-formed rather than a placeholder that only pretends to be image data.
 #: It encodes no signer, so it exercises the plumbing, not detection quality.
 _EXAMPLE_PAYLOAD_B64 = (
@@ -43,6 +44,11 @@ _RECOGNIZE_EXAMPLE: dict[str, object] = {
     "fps": 15,
     "payload_b64": _EXAMPLE_PAYLOAD_B64,
 }
+
+_RECOGNIZE_EXAMPLE_OPENAPI = Example(
+    value=_RECOGNIZE_EXAMPLE,
+    summary="One video frame (real 1x1 JPEG)",
+)
 
 _RECOGNIZE_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
     422: {"description": "Malformed base64 in `payload_b64`."},
@@ -69,10 +75,13 @@ def build_router(engine: SignEngine, settings: Settings) -> APIRouter:
             VideoFrame,
             Body(
                 # A dict, not a list: OpenAPI requires `examples` to be a MAP
-                # ({"name": {...}}). FastAPI passes a list straight through, and
+                # ({"name": Example{...}}). FastAPI passes a list straight through, and
                 # Swagger UI silently ignores the invalid array form and falls back
                 # to the schema — which is why a list "shows no example".
-                openapi_examples={"recognizeFrame": _RECOGNIZE_EXAMPLE},
+                #
+                # Each Example MUST have a `value` field (the actual example object).
+                # FastAPI's Example model enforces this; raw dicts are invalid OpenAPI.
+                openapi_examples={"recognizeFrame": _RECOGNIZE_EXAMPLE_OPENAPI},
                 description=(
                     "One video frame. `payload_b64` is the base64-encoded image "
                     "(JPEG/PNG); the example above is a real 1x1 JPEG."

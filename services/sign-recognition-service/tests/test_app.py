@@ -155,7 +155,10 @@ def test_documented_example_request_actually_works(settings: Settings) -> None:
         f"OpenAPI `examples` must be a map (got {type(examples).__name__}); a list is "
         "invalid OpenAPI and Swagger UI silently falls back to the schema"
     )
-    example = next(iter(examples.values()))
+    example_obj = next(iter(examples.values()))
+    # OpenAPI Example object has a `value` field containing the actual example data.
+    assert "value" in example_obj, "Example object must have a `value` field"
+    example = example_obj["value"]
     assert example["payload_b64"], "example must carry a payload"
     with TestClient(app) as client:
         response = client.post("/v1/recognize", json=example)
