@@ -143,7 +143,7 @@ def _unwrap_optional(annotation: object) -> object:
     """Strip None from Optional[X] → X."""
     if _is_optional(annotation):
         args = [a for a in _union_args(annotation) if a is not type(None)]
-        return args[0] if len(args) == 1 else typing.Union[tuple(args)]
+        return args[0] if len(args) == 1 else typing.Union[tuple(args)]  # noqa: UP007
     return annotation
 
 
@@ -291,7 +291,9 @@ def _collect_nested_models(
             collected.add(name)
             all_models[name] = annotation
             for fi in annotation.model_fields.values():
-                _collect_nested_models(fi.annotation, collected, all_models, events_module, enum_names)
+                _collect_nested_models(
+                    fi.annotation, collected, all_models, events_module, enum_names
+                )
 
 
 def gen_typescript() -> int:
@@ -398,7 +400,9 @@ def _emit_interface(lines: list[str], name: str, model: object, enum_names: set[
     """Emit a TypeScript interface for a Pydantic model."""
     docstring = getattr(model, "__doc__", None)
     if docstring:
-        doc_lines = [l.strip() for l in docstring.strip().split("\n") if l.strip()]
+        doc_lines = [
+            line.strip() for line in docstring.strip().split("\n") if line.strip()
+        ]
         if len(doc_lines) > 1:
             lines.append("/**")
             for dl in doc_lines[:4]:

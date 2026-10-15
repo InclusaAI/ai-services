@@ -31,6 +31,16 @@ inclusaai-utils = { path = "../../shared/utils", editable = true }
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
 
+# Real-model runtime extras (dev/local): only needed when TRANSLATION_MODEL_ID is
+# set — imports stay lazy, so the default stub deploys never pull a torch stack.
+[project.optional-dependencies]
+real-model = [
+    # <5: transformers v5 removed the ``translation`` pipeline task entirely.
+    "transformers>=4.42,<5",
+    "sentencepiece>=0.2",
+    "torch>=2.2",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

@@ -1,56 +1,220 @@
+# Render Blueprint for the InclusaAI ai-services monorepo.
+#
+# Deploy: Render Dashboard → New → Blueprint → point at this repo/branch.
+# Render builds each service from its own Dockerfile (context = repo root, so
+# shared/ path-dependencies resolve), keeping per-service dependency isolation.
+#
+# What Render does NOT provide (see RENDER_DEPLOY.md):
+#   - Kafka: MANAGED VIA AIVEN (kafka-*.aivencloud.com, SASL_SSL + PLAIN, private
+#     CA). Bootstrap/username/password/CA are set once in the `ai-services-env`
+#     group below. The `redpanda` pserv in this file is retained only as a local
+#     fallback and is INACTIVE while the group points at Aiven — delete it (and
+#     its 10 GB disk) once the Aiven path is confirmed working.
+#   - MinIO: MLflow artifacts live on a persistent disk attached to the
+#     mlflow private service instead (no S3 needed on Render).
+
 services:
+  # ------------------------------------------------------------------
+  # Event bus (private service — Kafka protocol on Render's private network)
+  # ------------------------------------------------------------------
+  - type: pserv
+    name: redpanda
+    runtime: docker
+    dockerfilePath: ./docker/redpanda.Dockerfile
+    dockerContext: .
+    plan: 2c-4g
+    disk:
+      name: redpanda-data
+      mountPath: /var/lib/redpanda/data
+      sizeGB: 10
+    envVars:
+      - key: REDPANDA_ENVIRONMENT
+        value: docker
+
+  # ------------------------------------------------------------------
+  # Model registry (private service, reachable only inside Render's network)
+  # ------------------------------------------------------------------
+  - type: pserv
+    name: mlflow
+    runtime: docker
+    dockerfilePath: ./docker/mlflow.Dockerfile
+    dockerContext: .
+    plan: 1c-2g
+    healthCheckPath: /health
+    disk:
+      name: mlflow-artifacts
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlflow-db
+          property: connectionString
+      - key: MLFLOW_ARTIFACT_ROOT
+        value: /var/data/mlflow-artifacts
+      - key: OTEL_SDK_DISABLED
+        value: "true"
+
+  # ------------------------------------------------------------------
+  # Inference services (7 web services, identical shape)
+  # ------------------------------------------------------------------
   - type: web
     name: asr-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/asr-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: asr-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: asr-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
 
   - type: web
     name: sign-recognition-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/sign-recognition-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: sign-recognition-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: sign-recognition-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - key: VIDEO_SAMPLE_FPS
+        value: "15"
+      - fromGroup: ai-services-env
 
   - type: web
     name: translation-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/translation-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: translation-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: translation-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
 
   - type: web
     name: tts-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/tts-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: tts-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: tts-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
 
   - type: web
     name: avatar-pose-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/avatar-pose-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: avatar-pose-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: avatar-pose-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
 
   - type: web
     name: vision-quality-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/vision-quality-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: vision-quality-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: vision-quality-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
 
   - type: web
     name: engagement-service
-    env: docker
+    runtime: docker
     dockerfilePath: ./services/engagement-service/Dockerfile
     dockerContext: .
-    plan: free
-    healthCheckPath: /healthz
+    plan: 1c-2g
+    healthCheckPath: /readyz
+    envVars:
+      - key: SERVICE_NAME
+        value: engagement-service
+      - key: KAFKA_CONSUMER_GROUP
+        value: engagement-service
+      - key: MLFLOW_TRACKING_URI
+        value: http://mlflow:10000
+      - fromGroup: ai-services-env
+
+databases:
+  - name: mlflow-db
+    plan: 0.5c-1g
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  - name: ai-services-env
+    envVars:
+      # Shared service settings
+      - key: ENV
+        value: prod
+      - key: LOG_LEVEL
+        value: INFO
+      # Managed Kafka — Aiven. Defined ONCE here: every service pulls this group
+      # with `fromGroup`, and a key set at the service level would silently win
+      # over the group value, so do not re-add KAFKA_BOOTSTRAP_SERVERS per service.
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        value: kafka-9780174-imkargi-90f4.l.aivencloud.com:27345
+      # SASL_SSL + PLAIN is what Aiven expects. Set explicitly rather than relying on
+      # the "credentials imply SASL_SSL" default so the protocol is visible in config.
+      - key: KAFKA_SECURITY_PROTOCOL
+        value: SASL_SSL
+      - key: KAFKA_SASL_MECHANISM
+        value: PLAIN
+      # Secrets: set in the Render dashboard (sync: false), never committed.
+      - key: KAFKA_USERNAME
+        sync: false
+      - key: KAFKA_PASSWORD
+        sync: false
+      # Aiven's TLS chain is signed by a private CA that is not in the system trust
+      # store. Paste the PEM body (not a path) — security_kwargs writes it to a temp
+      # file once and pins an ssl_context.
+      - key: KAFKA_CA_CERT
+        sync: false
+      # Honesty gates (ai_core): when true, a service that cannot reach the broker
+      # boots but reports /readyz 503 instead of silently serving nothing.
+      - key: REQUIRE_KAFKA
+        value: "true"
+      # Set per-service in the dashboard when that service requires a real,
+      # loaded MODEL_NAME (stub fallback -> 503).
+      - key: REQUIRE_MODEL
+        sync: false
+      # OpenTelemetry — point at a hosted collector (e.g. Grafana Cloud OTLP),
+      # or leave empty to skip tracing.
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false

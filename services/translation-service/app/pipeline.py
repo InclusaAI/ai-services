@@ -24,6 +24,9 @@ class TranslationPipeline(BaseInferencePipeline):
 
     async def on_start(self) -> None:
         self.engine.load()
+        # Honest readiness: a requested real model that failed to load turns
+        # /readyz to 503 under REQUIRE_MODEL (see BaseInferencePipeline).
+        self.model_ready = self.engine.ready
 
     async def handle(self, event_key: str, model: BaseModel) -> None:
         if not isinstance(model, TranscriptSegment):

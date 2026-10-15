@@ -3,59 +3,16 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from aiokafka import AIOKafkaProducer
-from aiokafka.helpers import create_ssl_context
 from inclusaai_telemetry import EVENTS_PUBLISHED, get_logger
 from pydantic import BaseModel
 
+from inclusaai_kafka_clients.security import security_kwargs
 from inclusaai_kafka_clients.topics import topic_for_event_key
 
 log = get_logger(__name__)
-
-
-def _load_ca_cert_from_env(service_name: str) -> bytes | None:
-    """Return a PEM certificate bytes blob when the env var is present and valid.
-
-    If the value is malformed or empty, log a warning instead of crashing the
-    entire service. The broker is treated as unavailable in that case and the
-    application keeps booting in offline mode.
-    """
-    ca_cert = os.getenv("KAFKA_SSL_CA", "").strip()
-    if not ca_cert:
-        return None
-
-    # DEBUG: Log the raw cert to inspect for truncation or encoding issues
-    log.info(
-        "kafka.ssl_ca.debug",
-        service=service_name,
-        cert_length=len(ca_cert),
-        cert_start=ca_cert[:100] if ca_cert else "",
-        cert_end=ca_cert[-100:] if ca_cert else "",
-    )
-
-    normalized = ca_cert.replace("\\n", "\n")
-    if "-----BEGIN CERTIFICATE-----" not in normalized or "-----END CERTIFICATE-----" not in normalized:
-        log.warning(
-            "kafka.ssl_ca.invalid",
-            service=service_name,
-            reason="KAFKA_SSL_CA must contain PEM-encoded certificate data.",
-            has_begin=("-----BEGIN CERTIFICATE-----" in normalized),
-            has_end=("-----END CERTIFICATE-----" in normalized),
-        )
-        return None
-
-    try:
-        return normalized.encode("utf-8")
-    except Exception as exc:  # pragma: no cover - defensive guard for odd env input
-        log.warning(
-            "kafka.ssl_ca.invalid",
-            service=service_name,
-            reason=str(exc),
-        )
-        return None
 
 
 class KafkaEventProducer:
@@ -87,36 +44,7 @@ class KafkaEventProducer:
                 "producer.offline", service=self._service, reason="no kafka broker configured"
             )
             return
-
-        # Build producer kwargs with optional SASL/SSL support (e.g., for Aiven Kafka)
-        producer_kwargs: dict[str, Any] = {
-            "bootstrap_servers": self._bootstrap,
-        }
-
-        # Check for SASL/SSL configuration
-        security_protocol = os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").upper()
-        if security_protocol in ("SASL_SSL", "SASL_PLAINTEXT"):
-            producer_kwargs["security_protocol"] = security_protocol
-            producer_kwargs["sasl_mechanism"] = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
-            producer_kwargs["sasl_plain_username"] = os.getenv("KAFKA_SASL_USERNAME", "")
-            producer_kwargs["sasl_plain_password"] = os.getenv("KAFKA_SASL_PASSWORD", "")
-
-            # Load CA certificate if provided (for SSL verification)
-            if security_protocol == "SASL_SSL":
-                ca_cert_bytes = _load_ca_cert_from_env(self._service)
-                if ca_cert_bytes is not None:
-                    try:
-                        producer_kwargs["ssl_context"] = create_ssl_context(cadata=ca_cert_bytes)
-                    except Exception as exc:  # pragma: no cover - defensive guard; treat as offline
-                        log.warning(
-                            "producer.offline",
-                            service=self._service,
-                            bootstrap=self._bootstrap,
-                            error=f"invalid kafka ssl ca: {exc}",
-                        )
-                        return
-
-        producer = AIOKafkaProducer(**producer_kwargs)
+        producer = AIOKafkaProducer(bootstrap_servers=self._bootstrap, **security_kwargs())
         try:
             await producer.start()
         except Exception as exc:  # noqa: BLE001 — broker unreachable must not block boot

@@ -21,7 +21,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /workspace
 # Preserve the monorepo layout so ../../shared path-deps resolve.
-COPY pyproject.toml /workspace/pyproject.toml
+# Workspace root, so shared libs' `workspace = true` sources resolve.
+COPY pyproject.toml /workspace/
 COPY shared/ /workspace/shared/
 COPY services/asr-service/ /workspace/services/asr-service/
 
@@ -30,6 +31,6 @@ RUN uv sync --no-dev
 
 EXPOSE 8080 50051
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD sh -c 'uv run python -c "import os,sys,urllib.request; port=os.getenv(\"PORT\", \"8080\"); sys.exit(0 if urllib.request.urlopen(f\"http://localhost:{port}/healthz\").status == 200 else 1)"'
+    CMD ["uv", "run", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:'+__import__('os').environ.get('PORT','8080')+'/healthz').status==200 else 1)"]
 
 CMD ["sh", "-c", "exec uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

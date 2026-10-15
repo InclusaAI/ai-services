@@ -46,3 +46,17 @@ shared/contracts/src/inclusaai_contracts/schemas/*.schema.json
 *.swp
 .DS_Store
 Thumbs.db
+
+# ---- TLS material ----
+# CA certs are public, but they are environment-specific and `*.key`/`*.p12`
+# are NOT: blanket-ignore so a private key can never be committed by accident.
+# Managed-broker certs reach the services via the KAFKA_CA_CERT env var
+# (security_kwargs accepts the inline PEM body), never as a repo file.
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ---- Local tooling state / personal artifacts ----
+.freebuff/
+*.PDF
