@@ -19,26 +19,40 @@ GPU, no MLflow, and no Kafka.
 ## Event flow
 
 ```
-                       media.session.<id>.audio.chunk ─► asr-service ─────────► ai.transcript.segment
-                                                                                     │
-   media.session.<id>.video.frame ─┬─► sign-recognition-service ─► ai.sign.recognition.result
-                                   └─► vision-quality-service ───► ai.vision.quality.signal
-                                                                                     │
-   ai.transcript.segment ─┬─► translation-service ─► ai.translation.result ─► tts-service ─► ai.tts.audio.chunk
-                          └─► avatar-pose-service ─► ai.avatar.pose.frame
-   media.session.<id>.participant.{joined,left} ─► engagement-service ─► ai.engagement.signal.aggregate  (periodic)
-   (every service) ──────────────────────────────────────────────────► ai.usage.aggregate               (periodic)
+media -> service -> output
+
+  media.session.<id>.audio.chunk        ─►  asr-service              ─►  ai.transcript.segment
+  media.session.<id>.video.frame        ─►  sign-recognition-service ─►  ai.sign.recognition.result
+  media.session.<id>.video.frame        ─►  vision-quality-service   ─►  ai.vision.quality.signal
+  media.session.<id>.participant.*      ─►  engagement-service       ─►  ai.engagement.signal.aggregate  (periodic)
+
+  ai.transcript.segment                 ─►  translation-service      ─►  ai.translation.result ─►  tts-service ─►  ai.tts.audio.chunk
+  ai.transcript.segment                 ─►  avatar-pose-service      ─►  ai.avatar.pose.frame
+
+  ai.sign.recognition.result            ─►  translation-service      ─►  ai.translation.result ─►  avatar-pose-service ─►  ai.avatar.pose.frame
+
+  (every service)                                                     ─►  ai.usage.aggregate  (periodic)
 ```
+
+`media -> service -> output`; where an output feeds several services, each consumer gets
+its own row.
+
+The `ai.sign.recognition.result` row is the **Deaf-presenter leg** and the reason it
+exists: a Deaf presenter signs, sign-recognition recognizes the closed-set gloss,
+translation-service renders that gloss, and avatar-pose signs the translated text back
+out so hearing participants can *see* what was said. Without translation-service
+consuming `ai.sign.recognition.result`, that path dead-ends at the recognizer and the
+platform is effectively captions-only in reverse.
 
 ## Services
 
 | Service | Consumes | Publishes | Preference-gated | Model |
 |---|---|---|---|---|
 | [asr-service](services/asr-service/) *(reference)* | `media.*.audio.chunk` | `ai.transcript.segment` | no (foundational) | `asr-whisper` |
-| [sign-recognition-service](services/sign-recognition-service/) | `media.*.video.frame` | `ai.sign.recognition.result` | no (foundational) | `sign-recognition-asl` |
-| [translation-service](services/translation-service/) | `ai.transcript.segment` | `ai.translation.result` | yes — `TRANSLATION` | `translation-nllb` |
+| [sign-recognition-service](services/sign-recognition-service/) | `media.*.video.frame` | `ai.sign.recognition.result` | yes — `CAPTIONS` **or** `TRANSLATION` | `sign-recognition-asl` |
+| [translation-service](services/translation-service/) | `ai.transcript.segment`, `ai.sign.recognition.result` | `ai.translation.result` | yes — `TRANSLATION` | `translation-nllb` |
 | [tts-service](services/tts-service/) | `ai.translation.result` | `ai.tts.audio.chunk` | yes — `TTS` | `tts-vits` |
-| [avatar-pose-service](services/avatar-pose-service/) | `ai.transcript.segment` | `ai.avatar.pose.frame` | yes — `AVATAR` | vocab (model optional) |
+| [avatar-pose-service](services/avatar-pose-service/) | `ai.transcript.segment`, `ai.translation.result` | `ai.avatar.pose.frame` | yes — `AVATAR` | vocab (model optional) |
 | [vision-quality-service](services/vision-quality-service/) | `media.*.video.frame` | `ai.vision.quality.signal` | no | heuristic (model optional) |
 | [engagement-service](services/engagement-service/) | `media.*.participant.*` | `ai.engagement.signal.aggregate` | no | none (aggregation) |
 

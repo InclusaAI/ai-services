@@ -23,5 +23,16 @@ class Settings(BaseServiceSettings):
     # a single default target.
     default_target_language: str = "es"
 
+    # Text language of a recognized sign's gloss, used as the MT `source` when
+    # translating `ai.sign.recognition.result` (the Deaf-presenter leg).
+    #
+    # The glosses in `inclusaai_sign_vocab` are **English placeholder text**, not real
+    # ASL glosses — ADR-0002 gates verified glosses on a Deaf-community/linguist
+    # consultation. So "en" is accurate for the MVP vocabulary and is what an MT model
+    # can actually consume (the sign language code "ASL" is not a text language pair).
+    # MUST be revisited when real glosses land; a gloss language is not a sign
+    # language.
+    sign_gloss_source_language: str = "en"
+
 
 settings = Settings()
